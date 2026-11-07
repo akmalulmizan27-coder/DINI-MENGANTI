@@ -84,7 +84,7 @@ th{background:#fafafa;font-size:12.5px;color:var(--mut);font-weight:500}
 .qty{display:flex;align-items:center;gap:0;border:1px solid #ddd;border-radius:2px;width:max-content}
 .qty .btn{border:0;border-radius:0;padding:4px 10px}.qty span{min-width:34px;text-align:center;border-left:1px solid #ddd;border-right:1px solid #ddd;padding:4px 0}
 .two{display:grid;gap:12px;grid-template-columns:1.4fr 1fr}
-.modal{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;z-index:70;padding:16px}
 .modal>.card{width:100%;max-width:520px;max-height:90vh;overflow:auto}
 .toast{position:fixed;top:45%;left:50%;transform:translate(-50%,-50%);background:#000c;color:#fff;padding:14px 20px;border-radius:4px;z-index:99;font-size:14px;text-align:center;max-width:80vw}
 .toast.err{background:#c62020ee}
@@ -400,8 +400,8 @@ async function viewCheckout(){
       <div><span>Berat J&T</span><span>${kgJnt(berat)} kg</span></div>
       <div><span>Ongkir J&T</span><span id="ong">-</span></div>
       <div class="tot"><span>Total</span><span id="tot">${rp(sub)}</span></div>
-      <button class="btn blk" id="buat" style="margin-top:12px" onclick="buatPesanan()">Buat Pesanan & Kirim ke WhatsApp</button>
-      <p class="mut">Pesanan akan dikonfirmasi admin toko. Pembayaran sesuai instruksi admin via WhatsApp.</p>
+      <button class="btn blk" id="buat" style="margin-top:12px" onclick="buatPesanan()">Buat Pesanan & Bayar (QRIS)</button>
+      <p class="mut">Setelah pesanan dibuat, QRIS pembayaran akan muncul. Bayar sesuai total, lalu kirim bukti bayar ke WhatsApp toko.</p>
     </div></div>`;
   // cek apakah API ongkir aktif
   const t = await cekOngkirApi();
@@ -467,32 +467,59 @@ async function buatPesanan(){
     await sb.from('profiles').update({ alamat, kota: kirim.kota, kecamatan: kirim.kecamatan, kodepos: kirim.kodepos }).eq('id', S.session.user.id);
     const o = ok(await sb.from('orders').select('*').eq('kode', kode).single());
     S.cart = []; saveCart();
-    const wa = waLink(o);
+    ORD_TERAKHIR = o;
     app.innerHTML = `<div class="auth card" style="text-align:center"><div style="font-size:48px">✅</div><h1>Pesanan dibuat</h1>
-      <p>Kode pesanan <b>${esc(kode)}</b><br>Total <b>${rp(o.total)}</b></p>
-      <p class="mut">Kirim detail pesanan ke WhatsApp toko agar segera diproses.</p>
-      <a class="btn wa blk" style="display:block" href="${wa}" target="_blank">Kirim ke WhatsApp Toko</a>
+      <p>Kode pesanan <b>${esc(kode)}</b><br>Total bayar <b style="color:var(--pri);font-size:18px">${rp(o.total)}</b></p>
+      <button class="btn blk" onclick="bayarQris(ORD_TERAKHIR)">Bayar Sekarang (QRIS)</button>
+      <a class="btn wa blk" style="display:block;margin-top:8px" href="${waLink(o, true)}" target="_blank">Kirim Pesanan & Bukti Bayar ke WhatsApp</a>
       <p><a href="#/pesanan">Lihat pesanan saya</a></p></div>`;
-    window.open(wa, '_blank');
+    bayarQris(o);
   } catch(e){ fail(e); b.disabled = false; }
 }
-function waLink(o){
+function waLink(o, bayar){
   const lines = [`*PESANAN ${o.kode}*`, `${S.settings.nama_toko||''}`, '',
     ...o.items.map(i=>`• ${i.nama} x${i.qty} = ${rp(i.harga*i.qty)}`), '',
     `Subtotal: ${rp(o.subtotal)}`, `Ongkir J&T ${o.layanan} (${kgJnt(o.berat_gram)} kg): ${rp(o.ongkir)}`, `*Total: ${rp(o.total)}*`, '',
     `Penerima: ${o.penerima_nama} (${o.penerima_hp})`, `Alamat: ${o.penerima_alamat}, ${[o.penerima_kecamatan,o.penerima_kota,o.penerima_kodepos].filter(Boolean).join(', ')}`,
-    o.catatan ? `Catatan: ${o.catatan}` : ''].filter(x=>x!==null);
+    o.catatan ? `Catatan: ${o.catatan}` : '', bayar ? `\nSaya sudah bayar via QRIS sebesar ${rp(o.total)}. Bukti bayar saya lampirkan.` : ''].filter(x=>x!==null);
   const no = String(S.settings.wa_toko||'').replace(/\D/g,'').replace(/^0/,'62');
   return `https://wa.me/${no}?text=${encodeURIComponent(lines.join('\n'))}`;
+}
+
+/* ================= PEMBAYARAN QRIS ================= */
+let ORD_TERAKHIR = null, PS_LIST = [];
+const qrisUrl = () => S.settings.qris_url || 'qris.jpg';
+function bayarQris(o){
+  modal(`<div style="text-align:center"><h2 style="margin:0 0 4px">Pembayaran QRIS</h2>
+    <div class="mut">Pesanan <b>${esc(o.kode)}</b></div>
+    <div style="margin:10px 0 4px" class="mut">Total yang harus dibayar</div>
+    <div style="font-size:26px;font-weight:800;color:var(--pri)">${rp(o.total)}</div>
+    <img src="${esc(qrisUrl())}" alt="QRIS ${esc(S.settings.nama_toko||'')}" style="width:100%;max-width:340px;margin:12px auto;display:block;border-radius:8px;border:1px solid var(--bd)">
+    <ol class="mut" style="text-align:left;font-size:12.5px;padding-left:18px;margin:4px 0 12px">
+      <li>Scan QRIS di atas pakai m-banking / e-wallet (GoPay, OVO, DANA, ShopeePay, dll.), atau <b>download</b> lalu upload dari galeri.</li>
+      <li>Masukkan nominal <b>${rp(o.total)}</b> persis sesuai total.</li>
+      <li>Kirim bukti bayar ke WhatsApp toko agar pesanan segera diproses.</li></ol>
+    <button class="btn blk" onclick="downloadQris()">⬇ Download QRIS</button>
+    <a class="btn wa blk" style="display:block;margin-top:8px" target="_blank" href="${waLink(o, true)}">Kirim Bukti Bayar ke WhatsApp</a>
+    <button class="btn g blk" style="margin-top:8px" onclick="closeModal()">Tutup</button></div>`);
+}
+async function downloadQris(){
+  const nama = `QRIS-${(S.settings.nama_toko||'toko').replace(/\W+/g,'-')}.jpg`;
+  try {
+    const r = await fetch(qrisUrl()); const b = await r.blob(); const u = URL.createObjectURL(b);
+    const a = document.createElement('a'); a.href = u; a.download = nama; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(u), 5000); toast('QRIS tersimpan di unduhan/galeri');
+  } catch { window.open(qrisUrl(), '_blank'); }
 }
 
 /* ================= MEMBER: PESANAN ================= */
 async function viewPesanan(){
   const d = ok(await sb.from('orders').select('*').eq('member_id', S.session.user.id).order('created_at',{ascending:false}));
+  PS_LIST = d;
   app.innerHTML = `<h1>Pesanan Saya</h1>${d.length ? `<div class="tw"><table><tr><th>Kode</th><th>Tanggal</th><th>Item</th><th>Total</th><th>Status</th><th>Resi J&T</th><th></th></tr>
     ${d.map(o=>`<tr><td><b>${esc(o.kode)}</b></td><td>${tgl(o.created_at)}</td><td>${o.items.map(i=>`${esc(i.nama)} ×${i.qty}`).join('<br>')}</td>
       <td>${rp(o.total)}</td><td><span class="st ${o.status}">${o.status}</span></td><td>${o.resi?`<b>${esc(o.resi)}</b>`:'-'}</td>
-      <td><a class="btn wa sm" href="${waLink(o)}" target="_blank">WA</a> ${o.status==='menunggu'?`<button class="btn g sm" onclick="batalOrder(${o.id})">Batal</button>`:''}</td></tr>`).join('')}
+      <td style="white-space:nowrap">${o.status==='menunggu'?`<button class="btn sm" onclick="bayarQris(PS_LIST.find(x=>x.id===${o.id}))">Bayar</button> `:''}<a class="btn wa sm" href="${waLink(o, o.status==='menunggu')}" target="_blank">WA</a> ${o.status==='menunggu'?`<button class="btn g sm" onclick="batalOrder(${o.id})">Batal</button>`:''}</td></tr>`).join('')}
     </table></div>` : '<div class="empty">Belum ada pesanan.</div>'}`;
 }
 async function batalOrder(id){ if(!confirm('Batalkan pesanan ini?')) return; try{ ok(await sb.rpc('cancel_order',{p_id:id})); toast('Pesanan dibatalkan'); route(); }catch(e){fail(e)} }
@@ -954,11 +981,16 @@ async function viewAdminPengaturan(){
     <input type="hidden" name="origin_id" value="${esc(s.origin_id)}"><input type="hidden" name="origin_nama" value="${esc(s.origin_nama)}">
     <div class="mut">ID asal: <span id="oid">${esc(s.origin_id||'-')}</span></div>
     <label>Tarif default per kg (kota lain, mode manual)</label><input name="tarif_default_per_kg" type="number" value="${esc(s.tarif_default_per_kg)}">
+    <h2>Pembayaran QRIS</h2>
+    <img src="${esc(qrisUrl())}" style="max-height:220px;border-radius:6px;border:1px solid var(--bd)">
+    <label>Ganti gambar QRIS (opsional)</label><input type="file" id="fq" accept="image/*">
+    <input type="hidden" name="qris_url" value="${esc(s.qris_url||'')}">
+    <div class="mut">Upload ulang hanya jika QRIS toko berganti. Gambar asli disimpan tanpa dikompres agar tetap bisa di-scan.</div>
     <button class="btn blk" style="margin-top:14px">Simpan pengaturan</button></form></div>
     <div class="card" style="align-self:start"><h2 style="margin-top:0">Tarif manual J&T per kota</h2><p class="mut">Dipakai bila API ongkir belum aktif. Berat dibulatkan aturan J&T (toleransi 0,3 kg).</p>
     <div class="tw"><table><tr><th>Kota</th><th>Per kg</th><th>Estimasi</th><th></th></tr>${tarif.map(t=>`<tr><td>${esc(t.kota)}</td><td>${rp(t.tarif_per_kg)}</td><td>${esc(t.etd)}</td><td><button class="btn g sm" onclick="hapus('tarif_manual',${t.id})">✕</button></td></tr>`).join('')}</table></div>
     <form id="ft" class="row" style="margin-top:10px"><input name="kota" placeholder="Kota" required><input name="tarif_per_kg" type="number" placeholder="Tarif/kg" required><input name="etd" placeholder="2-3 hari"><button class="btn" style="flex:none">+</button></form></div></div>`;
-  $('#fs').onsubmit = async e => { e.preventDefault(); try { const rows = Object.entries(Object.fromEntries(new FormData(e.target))).map(([key,value])=>({key,value}));
+  $('#fs').onsubmit = async e => { e.preventDefault(); try { const fq = $('#fq').files[0]; if (fq) { const path = `qris/${Date.now()}.${(fq.name.split('.').pop()||'jpg').toLowerCase()}`; ok(await sb.storage.from('foto').upload(path, fq, { upsert:true, contentType: fq.type })); $('[name=qris_url]').value = sb.storage.from('foto').getPublicUrl(path).data.publicUrl; } const rows = Object.entries(Object.fromEntries(new FormData(e.target))).map(([key,value])=>({key,value}));
     ok(await sb.from('settings').upsert(rows)); await loadSettings(); toast('Pengaturan disimpan'); } catch(er){ fail(er); } };
   $('#ft').onsubmit = async e => { e.preventDefault(); try { const fd = Object.fromEntries(new FormData(e.target)); ok(await sb.from('tarif_manual').upsert({ kota:fd.kota.trim(), tarif_per_kg:+fd.tarif_per_kg, etd:fd.etd||'2-3 hari' },{onConflict:'kota'})); viewAdminPengaturan(); } catch(er){ fail(er); } };
   if (api) { let tm; $('#oc').oninput = e => { clearTimeout(tm); tm = setTimeout(async ()=>{
