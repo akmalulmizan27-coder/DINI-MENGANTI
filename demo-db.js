@@ -282,6 +282,7 @@
 
   // banner info demo
   document.addEventListener('DOMContentLoaded', () => {
+    if (typeof DEMO_MODE === 'undefined' || !DEMO_MODE) return;
     const b = document.createElement('div');
     b.style.cssText = 'background:#1f2430;color:#fff;font-size:12.5px;padding:6px 12px;text-align:center';
     b.innerHTML = 'MODE DEMO — data tersimpan di browser ini. Admin: <b>admin@demo.com / admin123</b> · Member: <b>member@demo.com / member123</b> · <a href="#" style="color:#fbbf24" onclick="if(confirm(\'Reset semua data demo?\'))DemoDB.reset();return false">Reset data demo</a>';
