@@ -77,7 +77,7 @@
   let DB;
   const load = () => { try { DB = JSON.parse(localStorage.getItem(KEY)); } catch { DB = null; } if (!DB) { DB = seed(); save(); } upgrade(); return DB; };
   // ganti nilai bawaan lama (data demo yang sudah tersimpan di browser)
-  const upgrade = () => { let ch = false; if (!DB.popups) { DB.popups = []; DB.seq.popups = 1; ch = true; } for (const [k, lama, baru] of [['wa_toko', '6281234567890', '6281945507050'], ['hp_toko', '081234567890', '081945507050']]) { const r = DB.settings.find(x => x.key === k); if (r && r.value === lama) { r.value = baru; ch = true; } } if (ch) save(); };
+  const upgrade = () => { let ch = false; if (!DB.popups) { DB.popups = []; DB.seq.popups = 1; ch = true; } DB.popups.forEach(x => { if (!x.posisi) { x.posisi = 'popup'; ch = true; } }); for (const [k, lama, baru] of [['wa_toko', '6281234567890', '6281945507050'], ['hp_toko', '081234567890', '081945507050']]) { const r = DB.settings.find(x => x.key === k); if (r && r.value === lama) { r.value = baru; ch = true; } } if (ch) save(); };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(DB)); } catch (e) { throw new Error('Penyimpanan browser penuh (foto terlalu besar?)'); } };
   const session = () => { try { return JSON.parse(localStorage.getItem(SKEY)); } catch { return null; } };
   const me = () => { const s = session(); return s ? DB.profiles.find(p => p.id === s.user.id) : null; };

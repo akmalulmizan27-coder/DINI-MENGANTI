@@ -122,6 +122,16 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:24px 10px 40px}
 .popik .x{position:absolute;top:-14px;right:-14px;width:36px;height:36px;border-radius:50%;border:2px solid #fff;background:#0009;color:#fff;font-size:16px;cursor:pointer;z-index:2}
 .popik .cta{display:block;margin:12px auto 0;border:0;border-radius:99px;background:linear-gradient(#ffd54a,#ffb300);color:#7a2e00;font-weight:800;font-size:16px;padding:11px 28px;cursor:pointer;box-shadow:0 3px 0 #c77a00}
 .popik .dots{display:flex;gap:5px;justify-content:center;margin-top:10px}.popik .dots span{width:7px;height:7px;border-radius:50%;background:#fff6}.popik .dots span.on{background:#fff}
+.baris{background:#fff;border-radius:var(--r);padding:10px 12px 12px;margin-bottom:10px;position:relative}
+.baris .hd{font-size:12px;font-weight:600;color:var(--warn);margin-bottom:8px;text-transform:uppercase;letter-spacing:.3px}
+.baris .trk{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;scrollbar-width:none}
+.baris .trk::-webkit-scrollbar{display:none}
+.baris .it{flex:0 0 calc((100% - 20px)/3);aspect-ratio:16/7;scroll-snap-align:start;border-radius:6px;overflow:hidden;background:#f3f3f3 center/cover no-repeat;cursor:pointer;position:relative}
+.baris .it.ph{border:2px dashed #f7a35c;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#e07020;font-weight:700;text-align:center;font-size:14px;gap:4px;background:#fff8f2}
+.baris .it.ph small{font-weight:400;color:var(--mut);font-size:12px}
+.baris .nv{position:absolute;top:50%;width:32px;height:32px;border-radius:50%;border:0;background:#fffe;box-shadow:0 1px 4px #0003;cursor:pointer;font-size:18px;color:#555;z-index:2}
+.baris .nv.l{left:4px}.baris .nv.r{right:4px}
+@media(max-width:800px){.baris .it{flex-basis:86%}.baris .nv{display:none}}
 @keyframes pfade{from{opacity:0}}@keyframes pzoom{from{transform:scale(.85);opacity:0}}
 @media(max-width:800px){
   .two{grid-template-columns:1fr}
@@ -214,7 +224,7 @@ function renderNav(){
   const hc = $('#hcn'); hc.textContent = n; hc.style.display = n ? '' : 'none';
   let html = '';
   if (!S.session) html = L('#/login','Masuk') + L('#/daftar','Daftar');
-  else if (isAdmin()) html = L('#/admin/dashboard','Dashboard') + L('#/admin/pesanan','Pesanan') + L('#/admin/produk','Produk') + L('#/admin/member','Member & Poin') + L('#/admin/hadiah','Hadiah') + L('#/admin/penukaran','Penukaran') + L('#/admin/iklan','Iklan Popup') + L('#/admin/pengaturan','Pengaturan') + L('#/katalog','Lihat Toko') + `<a href="#" onclick="logout();return false">Keluar</a>`;
+  else if (isAdmin()) html = L('#/admin/dashboard','Dashboard') + L('#/admin/pesanan','Pesanan') + L('#/admin/produk','Produk') + L('#/admin/member','Member & Poin') + L('#/admin/hadiah','Hadiah') + L('#/admin/penukaran','Penukaran') + L('#/admin/iklan','Iklan') + L('#/admin/pengaturan','Pengaturan') + L('#/katalog','Lihat Toko') + `<a href="#" onclick="logout();return false">Keluar</a>`;
   else html = L('#/pesanan','Pesanan Saya') + L('#/poin',`Poin <span class="badge">${S.profile?.poin??0}</span>`) + L('#/profil',esc(S.profile?.nama||'Profil')) + `<a href="#" onclick="logout();return false">Keluar</a>`;
   $('#nav').innerHTML = html;
   const B = (href, ic, txt, extra='') => `<a href="${href}" class="${(href==='#/katalog' ? (h==='#/katalog'||h==='#/'||h==='') : h.startsWith(href))?'on':''}">${ic}${extra}<span>${txt}</span></a>`;
@@ -248,7 +258,9 @@ async function route(){
 /* ================= KATALOG ================= */
 let KAT = { q:'', kat:'Semua', list:[] };
 async function viewKatalog(){
-  KAT.list = ok(await sb.from('products').select('*').eq('aktif', true).order('nama'));
+  const [pr, ik] = await Promise.all([sb.from('products').select('*').eq('aktif', true).order('nama'), sb.from('popups').select('*').eq('aktif', true).eq('posisi','baris').order('urutan')]);
+  KAT.list = ok(pr); const t = hariIni();
+  KAT.ads = (ik.data||[]).filter(p => (!p.mulai || p.mulai <= t) && (!p.selesai || p.selesai >= t));
   drawKatalog();
 }
 function drawKatalog(){
@@ -259,8 +271,10 @@ function drawKatalog(){
   app.innerHTML = `
     ${KAT.q ? '' : `<div class="banner"><div><b>${esc(S.settings.nama_toko||'Toko')}</b><span>Belanja hemat, kumpulkan poin & tukar dengan hadiah 🎁</span></div>${poin}</div>`}
     <div class="cats">${kats.map(k=>`<span class="chip ${k===KAT.kat?'on':''}" onclick="KAT.kat='${esc(k).replace(/'/g,"\\'")}';drawKatalog()">${esc(k)}</span>`).join('')}</div>
+    ${KAT.q ? '' : barisHtml()}
     <div class="sect">${KAT.q ? `Hasil pencarian "${esc(KAT.q)}" <a href="#" style="float:right;font-size:12px;text-transform:none" onclick="KAT.q='';drawKatalog();return false">hapus ✕</a>` : 'Rekomendasi'}</div>
     ${f.length ? `<div class="grid">${f.map(cardProduk).join('')}</div>` : `<div class="empty">${KAT.list.length?'Produk tidak ditemukan':'Belum ada produk.'}</div>`}`;
+  jalankanBaris();
 }
 function cardProduk(p){
   const img = p.foto_url ? `style="background-image:url('${esc(p.foto_url)}')"` : '';
@@ -791,7 +805,7 @@ const hariIni = () => new Date().toLocaleDateString('sv-SE', { timeZone:'Asia/Ja
 async function tampilkanPopup(){
   if (isAdmin() || (location.hash||'').startsWith('#/admin')) return;
   if (sessionStorage.getItem('popupDitutup')) return;
-  const { data } = await sb.from('popups').select('*').eq('aktif', true).order('urutan');
+  const { data } = await sb.from('popups').select('*').eq('aktif', true).eq('posisi','popup').order('urutan');
   const t = hariIni();
   const list = (data||[]).filter(p => (!p.mulai || p.mulai <= t) && (!p.selesai || p.selesai >= t));
   if (list.length) popupKe(list, 0);
@@ -824,14 +838,41 @@ async function bukaLinkIklan(link){
   else location.hash = link;
 }
 
-let AI = [];
+function barisHtml(){
+  const ads = KAT.ads || [];
+  const no = String(S.settings.wa_toko||'').replace(/\D/g,'').replace(/^0/,'62');
+  const wa = `https://wa.me/${no}?text=${encodeURIComponent('Halo, saya mau pasang iklan baris di ' + (S.settings.nama_toko||'toko'))}`;
+  const items = ads.length
+    ? ads.map((a,i)=>`<div class="it" style="background-image:url('${esc(a.gambar_url)}')" title="${esc(a.judul)}" onclick="${a.link?`bukaLinkIklan(KAT.ads[${i}].link)`:''}"></div>`).join('')
+    : [1,2,3].map(()=>`<a class="it ph" href="${wa}" target="_blank">📢 SPACE IKLAN DISEWAKAN<small>Hubungi toko untuk pasang iklan</small></a>`).join('');
+  return `<div class="baris"><div class="hd">${ads.length ? 'Promo Spesial' : 'Iklan Baris (space disewakan)'}</div>
+    <button class="nv l" onclick="geserBaris(-1)" aria-label="Sebelumnya">‹</button><button class="nv r" onclick="geserBaris(1)" aria-label="Berikutnya">›</button>
+    <div class="trk" id="trk">${items}</div></div>`;
+}
+function geserBaris(d){
+  const t = $('#trk'); if (!t) return; const w = t.firstElementChild?.offsetWidth + 10 || t.clientWidth;
+  if (d > 0 && t.scrollLeft + t.clientWidth >= t.scrollWidth - 5) t.scrollLeft = 0;
+  else if (d < 0 && t.scrollLeft <= 5) t.scrollLeft = t.scrollWidth;
+  else t.scrollLeft += d * w;
+}
+let BARIS_T = null;
+function jalankanBaris(){
+  clearInterval(BARIS_T); const t = $('#trk'); if (!t || t.scrollWidth <= t.clientWidth + 5) return;
+  let jeda = false; ['mouseenter','touchstart'].forEach(ev=>t.addEventListener(ev,()=>jeda=true,{passive:true}));
+  ['mouseleave','touchend'].forEach(ev=>t.addEventListener(ev,()=>setTimeout(()=>jeda=false,2500),{passive:true}));
+  BARIS_T = setInterval(()=>{ if (!document.body.contains(t)) return clearInterval(BARIS_T); if (!jeda) geserBaris(1); }, 3500);
+}
+
+let AI = [], AI_TAB = 'popup';
 async function viewAdminIklan(){
-  AI = ok(await sb.from('popups').select('*').order('urutan').order('created_at',{ascending:false}));
+  AI = ok(await sb.from('popups').select('*').eq('posisi', AI_TAB).order('urutan').order('created_at',{ascending:false}));
   const t = hariIni();
   const st = p => !p.aktif ? '<span class="st batal">nonaktif</span>' : (p.mulai && p.mulai > t) ? '<span class="st menunggu">terjadwal</span>' : (p.selesai && p.selesai < t) ? '<span class="st batal">berakhir</span>' : '<span class="st selesai">tayang</span>';
-  app.innerHTML = `<h1>Iklan Popup</h1>
-    <p class="mut">Iklan muncul saat pengunjung membuka web (sekali per kunjungan) dan hilang saat tombol ✕ diklik. Jika ada beberapa iklan tayang, ditampilkan bergantian sesuai urutan.</p>
-    <div class="toolbar"><button class="btn" onclick="formIklan()">+ Tambah iklan</button><button class="btn o" onclick="sessionStorage.removeItem('popupDitutup');pratinjauIklan()">👁 Pratinjau iklan tayang</button></div>
+  const tab = (v, t) => `<span class="chip ${AI_TAB===v?'on':''}" style="flex:none" onclick="AI_TAB='${v}';viewAdminIklan()">${t}</span>`;
+  app.innerHTML = `<h1>Iklan</h1>
+    <div class="row" style="flex:none;gap:6px;margin-bottom:10px">${tab('popup','1. Pop Up')}${tab('baris','2. Iklan Baris')}</div>
+    <p class="mut">${AI_TAB==='popup' ? 'Pop Up muncul saat pengunjung membuka web (sekali per kunjungan) dan hilang saat tombol ✕ diklik. Beberapa iklan tayang ditampilkan bergantian sesuai urutan.' : 'Iklan Baris tampil di beranda (di bawah kategori) dan bergeser otomatis kanan–kiri. Jika belum ada iklan, tampil kotak "Space iklan disewakan".'}</p>
+    <div class="toolbar"><button class="btn" onclick="formIklan()">+ Tambah ${AI_TAB==='popup'?'Pop Up':'Iklan Baris'}</button>${AI_TAB==='popup'?`<button class="btn o" onclick="sessionStorage.removeItem('popupDitutup');pratinjauIklan()">👁 Pratinjau pop up tayang</button>`:`<a class="btn o" href="#/katalog">👁 Lihat di beranda</a>`}</div>
     ${AI.length?`<div class="tw"><table><tr><th>Gambar</th><th>Judul</th><th>Klik menuju</th><th>Periode</th><th>Urutan</th><th>Status</th><th></th></tr>
     ${AI.map(p=>`<tr><td><img src="${esc(p.gambar_url)}" style="width:60px;height:80px;object-fit:cover;border-radius:4px"></td>
       <td><b>${esc(p.judul||'-')}</b>${p.teks_tombol?`<div class="mut">Tombol: ${esc(p.teks_tombol)}</div>`:''}</td>
@@ -849,10 +890,10 @@ async function formIklan(id){
   const p = AI.find(x=>x.id===id) || { judul:'', gambar_url:'', link:'', teks_tombol:'', aktif:true, mulai:'', selesai:'', urutan:0 };
   const prods = ok(await sb.from('products').select('id,nama').order('nama'));
   const jenis = p.link?.startsWith('produk:') ? 'produk' : p.link ? 'url' : '';
-  modal(`<h2 style="margin-top:0">${id?'Edit':'Tambah'} iklan popup</h2><form id="fi">
+  modal(`<h2 style="margin-top:0">${id?'Edit':'Tambah'} ${AI_TAB==='popup'?'Pop Up':'Iklan Baris'}</h2><form id="fi">
     <label>Judul (untuk catatan admin)</label><input name="judul" value="${esc(p.judul)}" placeholder="mis. Promo Gajian">
     <label>Gambar iklan ${id?'(kosongkan jika tidak diganti)':''}</label><input type="file" id="fg" accept="image/*" ${id?'':'required'}>
-    <div class="mut">Disarankan gambar tegak (rasio 3:4 atau 9:16), maks. ±1 MB.</div>
+    <div class="mut">${AI_TAB==='popup' ? 'Disarankan gambar tegak (rasio 3:4 atau 9:16), maks. ±1 MB.' : 'Disarankan gambar mendatar rasio 16:7 (mis. 1200×525 px), maks. ±1 MB.'}</div>
     <img id="pv" src="${esc(p.gambar_url)}" style="max-height:160px;margin-top:6px;border-radius:6px;${p.gambar_url?'':'display:none'}">
     <label>Saat iklan diklik, buka</label>
     <select id="lj"><option value="">Tidak ada (hanya gambar)</option><option value="produk" ${jenis==='produk'?'selected':''}>Halaman produk</option><option value="url" ${jenis==='url'?'selected':''}>Link web / WhatsApp</option></select>
@@ -871,7 +912,7 @@ async function formIklan(id){
       const fd = Object.fromEntries(new FormData(e.target)); const j = $('#lj').value;
       let link = j==='produk' ? 'produk:'+$('#lp').value : j==='url' ? $('#lu').value.trim() : '';
       if (j==='url' && link && !/^https?:\/\//.test(link)) link = 'https://' + link;
-      const row = { judul:fd.judul, teks_tombol:fd.teks_tombol, link, mulai:fd.mulai||null, selesai:fd.selesai||null, urutan:+fd.urutan||0, aktif:!!fd.aktif, gambar_url:p.gambar_url };
+      const row = { posisi:AI_TAB, judul:fd.judul, teks_tombol:fd.teks_tombol, link, mulai:fd.mulai||null, selesai:fd.selesai||null, urutan:+fd.urutan||0, aktif:!!fd.aktif, gambar_url:p.gambar_url };
       const f = $('#fg').files[0]; if (f) row.gambar_url = await uploadFoto(f, 'iklan');
       ok(id ? await sb.from('popups').update(row).eq('id',id) : await sb.from('popups').insert(row));
       closeModal(); toast('Iklan tersimpan'); viewAdminIklan();

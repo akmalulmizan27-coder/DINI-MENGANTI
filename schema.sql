@@ -316,6 +316,7 @@ create table if not exists public.popups (
   id bigint generated always as identity primary key,
   judul text not null default '', gambar_url text not null, link text default '', teks_tombol text default '',
   aktif boolean not null default true, mulai date, selesai date, urutan integer not null default 0,
+  posisi text not null default 'popup' check (posisi in ('popup','baris')),
   created_at timestamptz not null default now()
 );
 alter table public.popups enable row level security;
