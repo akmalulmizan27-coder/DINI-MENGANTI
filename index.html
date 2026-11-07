@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Katalog Toko & Member Poin</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="demo-db.js"></script>
 <style>
 :root{--pri:#e4572e;--pri-d:#c2441f;--bg:#f5f6f8;--card:#fff;--tx:#1f2430;--mut:#6b7280;--bd:#e5e7eb;--ok:#16a34a;--warn:#d97706;--err:#dc2626;--r:12px}
 *{box-sizing:border-box}
@@ -76,11 +77,12 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:24px 10px 40px}
 
 <script>
 /* ================= KONFIGURASI ================= */
+const DEMO_MODE = true; // true = data di browser (tanpa server). false = pakai backend
 const SUPABASE_URL = 'https://xkwaudqodbcwjfdhrunu.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_cVpGcGWXl_8fKrDLxDFlGg_vQ53qLhx';
 /* =============================================== */
 
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = (DEMO_MODE && window.DemoDB) ? DemoDB.createClient() : supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const S = { session:null, profile:null, settings:{}, cart: JSON.parse(localStorage.getItem('cart')||'[]'), rt:null };
 const $ = s => document.querySelector(s);
 const app = $('#app');
@@ -483,7 +485,7 @@ function inputResi(id){
   const o = AP.list.find(x=>x.id===id);
   modal(`<h2 style="margin-top:0">Kirim pesanan ${esc(o.kode)}</h2><label>No. resi J&T</label><input id="rs" value="${esc(o.resi||'')}" placeholder="JP1234567890">
     <div class="row" style="margin-top:14px"><button class="btn" onclick="simpanResi(${id})">Simpan & tandai dikirim</button><button class="btn g" onclick="closeModal()">Batal</button></div>`);
-  setTimeout(()=>$('#rs').focus(),50);
+  setTimeout(()=>$('#rs')?.focus(),50);
 }
 async function simpanResi(id){
   const resi = $('#rs').value.trim(); if(!resi) return toast('Isi nomor resi', true);
@@ -617,7 +619,7 @@ function poinModal(id, nama, ket=''){
     <label>Jumlah poin</label><input id="pj" type="number" min="1" placeholder="mis. 10">
     <label>Keterangan</label><input id="pk" value="${esc(ket)}" placeholder="mis. Belanja 5 slop / bonus event">
     <div class="row" style="margin-top:14px"><button class="btn" onclick="simpanPoin('${id}')">Simpan</button><button class="btn g" onclick="closeModal()">Batal</button></div>`);
-  window.POIN_SIGN = 1; setTimeout(()=>$('#pj').focus(),50);
+  window.POIN_SIGN = 1; setTimeout(()=>$('#pj')?.focus(),50);
 }
 async function simpanPoin(id){
   const j = parseInt($('#pj').value,10); if(!j||j<1) return toast('Isi jumlah poin', true);

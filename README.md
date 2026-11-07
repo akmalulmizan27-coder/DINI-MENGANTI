@@ -12,7 +12,22 @@ Aplikasi web katalog (gaya e-commerce) dengan:
 3. Admin input **resi J&T** → status **dikirim** (member melihat resi di "Pesanan Saya").
 4. **Selesai** → admin bisa tambah poin manual (tombol "+Poin" di baris pesanan atau menu Member & Poin).
 
-## Setup
+## Mode Demo (aktif sekarang)
+`DEMO_MODE = true` di `index.html` → aplikasi jalan **tanpa server**, data tersimpan di browser (`demo-db.js`).
+- Admin: `admin@demo.com` / `admin123`
+- Member: `member@demo.com` / `member123`
+- Link "Reset data demo" di banner atas untuk mengembalikan data contoh.
+- Notifikasi pesanan baru berjalan antar-tab di browser yang sama.
+
+### Hosting di Cloudflare Pages
+Cloudflare Dashboard → Workers & Pages → Create → Pages → Connect to Git → pilih repo ini →
+Framework preset: **None**, Build command: *(kosong)*, Output directory: `/` → Deploy.
+
+### Pindah ke database sungguhan
+`demo-db.js` meniru API supabase-js. Untuk backend Cloudflare (Worker + D1) cukup ganti lapisan data ini; tampilan tidak perlu diubah.
+Untuk Supabase: set `DEMO_MODE = false`.
+
+## Setup (Supabase)
 1. Buat project Supabase → SQL Editor → jalankan `schema.sql`.
 2. Isi `SUPABASE_URL` dan `SUPABASE_ANON_KEY` di bagian atas `index.html`.
 3. Daftar akun lewat aplikasi, lalu jadikan admin:
