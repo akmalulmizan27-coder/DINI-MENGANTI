@@ -17,7 +17,7 @@
     const prod = (id, nama, kategori, harga, berat, stok, deskripsi, emoji) =>
       ({ id, nama, kategori, harga, berat_gram: berat, stok, deskripsi, foto_url: svgFoto(emoji, nama), aktif: true, created_at: t });
     return {
-      seq: { products: 9, orders: 1, point_logs: 3, rewards: 5, redemptions: 1, tarif_manual: 7 },
+      seq: { popups: 1, products: 9, orders: 1, point_logs: 3, rewards: 5, redemptions: 1, tarif_manual: 7 },
       users: [
         { id: adminId, email: 'admin@demo.com', password: 'admin123' },
         { id: memId, email: 'member@demo.com', password: 'member123' },
@@ -49,6 +49,7 @@
         { id: 4, nama: 'Kaos Toko', deskripsi: 'Ukuran M / L / XL', poin: 500, stok: 5, foto_url: svgFoto('👕', 'Kaos'), aktif: true, created_at: t },
       ],
       redemptions: [],
+      popups: [],
       tarif_manual: [
         { id: 1, kota: 'Gresik', tarif_per_kg: 8000, etd: '1-2 hari' },
         { id: 2, kota: 'Surabaya', tarif_per_kg: 8000, etd: '1-2 hari' },
@@ -76,7 +77,7 @@
   let DB;
   const load = () => { try { DB = JSON.parse(localStorage.getItem(KEY)); } catch { DB = null; } if (!DB) { DB = seed(); save(); } upgrade(); return DB; };
   // ganti nilai bawaan lama (data demo yang sudah tersimpan di browser)
-  const upgrade = () => { let ch = false; for (const [k, lama, baru] of [['wa_toko', '6281234567890', '6281945507050'], ['hp_toko', '081234567890', '081945507050']]) { const r = DB.settings.find(x => x.key === k); if (r && r.value === lama) { r.value = baru; ch = true; } } if (ch) save(); };
+  const upgrade = () => { let ch = false; if (!DB.popups) { DB.popups = []; DB.seq.popups = 1; ch = true; } for (const [k, lama, baru] of [['wa_toko', '6281234567890', '6281945507050'], ['hp_toko', '081234567890', '081945507050']]) { const r = DB.settings.find(x => x.key === k); if (r && r.value === lama) { r.value = baru; ch = true; } } if (ch) save(); };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(DB)); } catch (e) { throw new Error('Penyimpanan browser penuh (foto terlalu besar?)'); } };
   const session = () => { try { return JSON.parse(localStorage.getItem(SKEY)); } catch { return null; } };
   const me = () => { const s = session(); return s ? DB.profiles.find(p => p.id === s.user.id) : null; };
@@ -105,7 +106,7 @@
       const T = DB[this.t]; if (!T) return err('Tabel tidak ada: ' + this.t);
       const pk = PK[this.t] || 'id';
       const match = r => this.f.every(fn => fn(r));
-      const adminOnly = ['products', 'rewards', 'tarif_manual', 'settings'];
+      const adminOnly = ['products', 'rewards', 'tarif_manual', 'settings', 'popups'];
       if (this.op !== 'select') {
         if (adminOnly.includes(this.t) && !isAdmin()) return err('Hanya admin');
         if (this.t === 'orders' && !isAdmin()) return err('Hanya admin');

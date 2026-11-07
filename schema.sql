@@ -311,6 +311,19 @@ create policy p_set_sel on public.settings for select using (true);
 drop policy if exists p_set_adm on public.settings;
 create policy p_set_adm on public.settings for all using (public.is_admin()) with check (public.is_admin());
 
+-- ---------- IKLAN POPUP ----------
+create table if not exists public.popups (
+  id bigint generated always as identity primary key,
+  judul text not null default '', gambar_url text not null, link text default '', teks_tombol text default '',
+  aktif boolean not null default true, mulai date, selesai date, urutan integer not null default 0,
+  created_at timestamptz not null default now()
+);
+alter table public.popups enable row level security;
+drop policy if exists p_popups_sel on public.popups;
+create policy p_popups_sel on public.popups for select using (aktif or public.is_admin());
+drop policy if exists p_popups_adm on public.popups;
+create policy p_popups_adm on public.popups for all using (public.is_admin()) with check (public.is_admin());
+
 -- ---------- STORAGE (foto produk & hadiah) ----------
 insert into storage.buckets(id, name, public) values ('foto','foto', true) on conflict (id) do nothing;
 drop policy if exists p_foto_read on storage.objects;
