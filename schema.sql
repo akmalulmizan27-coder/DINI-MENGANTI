@@ -112,6 +112,8 @@ insert into public.settings(key,value) values
  ('tarif_default_per_kg','12000')
 on conflict (key) do nothing;
 
+create sequence if not exists public.order_kode_seq;
+
 -- ---------- HELPER ----------
 create or replace function public.is_admin() returns boolean
 language sql stable security definer set search_path = public as $$
@@ -213,7 +215,7 @@ declare it jsonb; pr public.products; v_items jsonb := '[]'; v_sub integer := 0;
 begin
   if auth.uid() is null then raise exception 'Silakan login'; end if;
   if jsonb_array_length(p_items) = 0 then raise exception 'Keranjang kosong'; end if;
-  for it in select * from jsonb_array_elements(p_items) loop
+  for it in select * from jsonb_array_elements(p_items) order by (value->>'id')::bigint loop
     v_qty := greatest((it->>'qty')::int, 1);
     select * into pr from public.products where id = (it->>'id')::bigint and aktif for update;
     if pr.id is null then raise exception 'Produk tidak tersedia'; end if;
@@ -224,7 +226,7 @@ begin
     v_berat := v_berat + pr.berat_gram * v_qty;
   end loop;
   v_ongkir := coalesce((p_kirim->>'ongkir')::int, 0);
-  v_kode := 'ORD' || to_char(now() at time zone 'Asia/Jakarta','YYMMDD') || lpad((floor(random()*10000))::text,4,'0');
+  v_kode := 'ORD' || to_char(now() at time zone 'Asia/Jakarta','YYMMDD') || lpad((nextval('public.order_kode_seq') % 100000)::text,5,'0');
   insert into public.orders(kode, member_id, items, subtotal, berat_gram, layanan, ongkir, etd, total,
     penerima_nama, penerima_hp, penerima_alamat, penerima_kota, penerima_kecamatan, penerima_kodepos,
     tujuan_id, catatan)
@@ -344,3 +346,21 @@ exception when others then null; end $$;
 -- update public.profiles set role='admin'
 --   where id = (select id from auth.users where email='EMAIL_ADMIN@contoh.com');
 -- =====================================================================
+
+-- =====================================================================
+-- PERBAIKAN SETELAH TES BEBAN (100-300 pesanan bersamaan)
+-- =====================================================================
+-- Kode pesanan pakai sequence supaya tidak pernah kembar
+create sequence if not exists public.order_kode_seq;
+-- (fungsi create_order versi terbaru: kode = 'ORD' || YYMMDD || nextval(order_kode_seq) 5 digit,
+--  dan produk dikunci berurutan id supaya pesanan bersamaan tidak saling menunggu/deadlock)
+
+create index if not exists idx_orders_member on public.orders(member_id);
+create index if not exists idx_orders_status_created on public.orders(status, created_at desc);
+create index if not exists idx_point_logs_member on public.point_logs(member_id, created_at desc);
+create index if not exists idx_point_logs_oleh on public.point_logs(oleh);
+create index if not exists idx_red_member on public.redemptions(member_id);
+create index if not exists idx_red_reward on public.redemptions(reward_id);
+create index if not exists idx_products_aktif_nama on public.products(aktif, nama);
+-- Policy RLS memakai (select auth.uid()) / (select public.is_admin()) agar dihitung sekali per query,
+-- dan policy admin dipisah per aksi (insert/update/delete) — lihat migrasi "perf_dan_fix_kode_order".
