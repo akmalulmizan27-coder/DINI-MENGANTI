@@ -251,6 +251,20 @@ begin
   update public.orders set status = 'batal' where id = p_id;
 end $$;
 
+-- ---------- HAK EKSEKUSI FUNGSI ----------
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+revoke execute on function public.protect_profile() from public, anon, authenticated;
+revoke execute on function public.admin_adjust_points(uuid,integer,text) from public, anon;
+revoke execute on function public.admin_process_redemption(bigint,text,text) from public, anon;
+revoke execute on function public.cancel_order(bigint) from public, anon;
+revoke execute on function public.create_order(jsonb,jsonb) from public, anon;
+revoke execute on function public.redeem_reward(bigint) from public, anon;
+grant execute on function public.admin_adjust_points(uuid,integer,text) to authenticated;
+grant execute on function public.admin_process_redemption(bigint,text,text) to authenticated;
+grant execute on function public.cancel_order(bigint) to authenticated;
+grant execute on function public.create_order(jsonb,jsonb) to authenticated;
+grant execute on function public.redeem_reward(bigint) to authenticated;
+
 -- ---------- RLS ----------
 alter table public.profiles     enable row level security;
 alter table public.products     enable row level security;
