@@ -297,7 +297,7 @@ function addCart(id, diam){
 /* ================= AUTH ================= */
 function viewLogin(){
   app.innerHTML = `<div class="auth card"><h1>Masuk</h1>
-    <form id="f"><label>Email</label><input name="email" type="email" required>
+    <form id="f"><label>Email / ID</label><input name="email" type="text" autocapitalize="off" autocomplete="username" required>
     <label>Password</label><input name="password" type="password" required>
     <button class="btn blk" style="margin-top:14px">Masuk</button></form>
     <p class="mut" style="text-align:center">Belum punya akun? <a href="#/daftar">Daftar member</a></p>
@@ -305,9 +305,10 @@ function viewLogin(){
   $('#f').onsubmit = async e => {
     e.preventDefault(); const b = e.target.querySelector('button'); b.disabled = true;
     const fd = Object.fromEntries(new FormData(e.target));
+    fd.email = fd.email.trim(); if (!fd.email.includes('@')) fd.email = fd.email.toLowerCase() + '@dinimenganti.com'; // login pakai ID
     const { error } = await sb.auth.signInWithPassword(fd);
     b.disabled = false;
-    if (error) return toast(error.message === 'Invalid login credentials' ? 'Email atau password salah' : error.message, true);
+    if (error) return toast(error.message === 'Invalid login credentials' ? 'Email/ID atau password salah' : error.message, true);
     await loadProfile(); location.hash = isAdmin() ? '#/admin/dashboard' : (S.cart.length ? '#/keranjang' : '#/katalog');
   };
 }
