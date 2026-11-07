@@ -104,9 +104,9 @@ create table if not exists public.settings (
 
 insert into public.settings(key,value) values
  ('nama_toko','Toko Saya'),
- ('wa_toko','6281234567890'),
+ ('wa_toko','6281945507050'),
  ('alamat_toko','Jl. Contoh No. 1, Surabaya'),
- ('hp_toko','081234567890'),
+ ('hp_toko','081945507050'),
  ('origin_id',''),          -- ID kota/kecamatan asal (RajaOngkir/Komerce)
  ('origin_nama','Surabaya'),
  ('tarif_default_per_kg','12000')

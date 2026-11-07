@@ -59,9 +59,9 @@
       ],
       settings: [
         { key: 'nama_toko', value: 'DINI MENGANTI' },
-        { key: 'wa_toko', value: '6281234567890' },
+        { key: 'wa_toko', value: '6281945507050' },
         { key: 'alamat_toko', value: 'Menganti, Gresik' },
-        { key: 'hp_toko', value: '081234567890' },
+        { key: 'hp_toko', value: '081945507050' },
         { key: 'origin_id', value: '' },
         { key: 'origin_nama', value: 'Menganti, Gresik' },
         { key: 'tarif_default_per_kg', value: '15000' },
@@ -74,7 +74,9 @@
   }
 
   let DB;
-  const load = () => { try { DB = JSON.parse(localStorage.getItem(KEY)); } catch { DB = null; } if (!DB) { DB = seed(); save(); } return DB; };
+  const load = () => { try { DB = JSON.parse(localStorage.getItem(KEY)); } catch { DB = null; } if (!DB) { DB = seed(); save(); } upgrade(); return DB; };
+  // ganti nilai bawaan lama (data demo yang sudah tersimpan di browser)
+  const upgrade = () => { let ch = false; for (const [k, lama, baru] of [['wa_toko', '6281234567890', '6281945507050'], ['hp_toko', '081234567890', '081945507050']]) { const r = DB.settings.find(x => x.key === k); if (r && r.value === lama) { r.value = baru; ch = true; } } if (ch) save(); };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(DB)); } catch (e) { throw new Error('Penyimpanan browser penuh (foto terlalu besar?)'); } };
   const session = () => { try { return JSON.parse(localStorage.getItem(SKEY)); } catch { return null; } };
   const me = () => { const s = session(); return s ? DB.profiles.find(p => p.id === s.user.id) : null; };
