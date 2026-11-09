@@ -519,11 +519,35 @@ async function viewPesanan(){
   PS_LIST = d;
   app.innerHTML = `<h1>Pesanan Saya</h1>${d.length ? `<div class="tw"><table><tr><th>Kode</th><th>Tanggal</th><th>Item</th><th>Total</th><th>Status</th><th>Resi J&T</th><th></th></tr>
     ${d.map(o=>`<tr><td><b>${esc(o.kode)}</b></td><td>${tgl(o.created_at)}</td><td>${o.items.map(i=>`${esc(i.nama)} ×${i.qty}`).join('<br>')}</td>
-      <td>${rp(o.total)}</td><td><span class="st ${o.status}">${o.status}</span></td><td>${o.resi?`<b>${esc(o.resi)}</b>`:'-'}</td>
+      <td>${rp(o.total)}</td><td><span class="st ${o.status}">${o.status}</span></td><td>${o.resi?`<b>${esc(o.resi)}</b><br><button class="btn o sm" style="margin-top:4px" onclick="lacakResi('${esc(o.resi)}')">📦 Lacak</button>`:(o.status==='dikonfirmasi'?'<span class="mut">Sedang dikemas</span>':'-')}</td>
       <td style="white-space:nowrap">${o.status==='menunggu'?`<button class="btn sm" onclick="bayarQris(PS_LIST.find(x=>x.id===${o.id}))">Bayar</button> `:''}<a class="btn wa sm" href="${waLink(o, o.status==='menunggu')}" target="_blank">WA</a> ${o.status==='menunggu'?`<button class="btn g sm" onclick="batalOrder(${o.id})">Batal</button>`:''}</td></tr>`).join('')}
     </table></div>` : '<div class="empty">Belum ada pesanan.</div>'}`;
 }
 async function batalOrder(id){ if(!confirm('Batalkan pesanan ini?')) return; try{ ok(await sb.rpc('cancel_order',{p_id:id})); toast('Pesanan dibatalkan'); route(); }catch(e){fail(e)} }
+
+/* ================= LACAK RESI J&T ================= */
+async function lacakResi(resi){
+  modal(`<h2 style="margin-top:0">Lacak Paket J&T</h2><div class="row" style="flex:none;gap:6px"><b style="font-size:16px;flex:none">${esc(resi)}</b>
+    <button class="btn g sm" style="flex:none" onclick="navigator.clipboard?.writeText('${esc(resi)}');toast('Resi disalin')">Salin</button></div>
+    <div id="lk" style="margin-top:12px" class="mut">Mengambil data dari J&T…</div>
+    <button class="btn g blk" style="margin-top:12px" onclick="closeModal()">Tutup</button>`);
+  let data = null, err = '';
+  try { const r = await sb.functions.invoke('ongkir-jnt', { body:{ action:'track', awb:resi } }); data = r.data; if (!data?.ok) err = data?.error || r.error?.message || ''; }
+  catch(e){ err = e.message; }
+  const box = $('#lk'); if (!box) return;
+  const cadangan = `<div class="mut" style="margin-top:10px">Bisa juga cek langsung di <a href="https://jet.co.id/track" target="_blank">jet.co.id/track</a> (tempel nomor resi).</div>`;
+  if (!data?.ok) { box.innerHTML = `<div style="color:var(--err)">Data pelacakan belum tersedia.</div><div class="mut">${/not found|tidak ditemukan|404|invalid awb/i.test(err)?'Resi belum terdaftar di sistem J&T — biasanya muncul beberapa jam setelah paket diserahkan.':esc(err)}</div>${cadangan}`; return; }
+  const d = data.data || {}, sm = d.summary || {}, ds = d.delivery_status || {};
+  const man = (d.manifest || []).slice().sort((a,b)=> (b.manifest_date+' '+b.manifest_time).localeCompare(a.manifest_date+' '+a.manifest_time));
+  box.innerHTML = `<div class="card" style="background:${d.delivered?'#e6f7f4':'var(--pri-l)'};box-shadow:none;margin-bottom:10px">
+      <b style="color:${d.delivered?'var(--ok)':'var(--pri)'}">${d.delivered?'✓ Paket sudah diterima':esc(sm.status||'Dalam pengiriman')}</b>
+      <div class="mut">${esc(sm.origin||'')}${sm.destination?' → '+esc(sm.destination):''}</div>
+      ${d.delivered && ds.pod_receiver ? `<div class="mut">Diterima: ${esc(ds.pod_receiver)} · ${esc(ds.pod_date||'')} ${esc(ds.pod_time||'')}</div>`:''}</div>
+    ${man.length ? `<div style="max-height:45vh;overflow:auto">${man.map((m,i)=>`<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">
+      <div style="width:10px;height:10px;border-radius:50%;margin-top:5px;flex:none;background:${i===0?'var(--pri)':'#ccc'}"></div>
+      <div><div style="color:var(--tx);${i===0?'font-weight:600':''}">${esc(m.manifest_description||'')}</div><div class="mut">${esc(m.manifest_date||'')} ${esc(m.manifest_time||'')}${m.city_name?' · '+esc(m.city_name):''}</div></div></div>`).join('')}</div>` : '<div class="mut">Belum ada riwayat perjalanan.</div>'}
+    ${cadangan}`;
+}
 
 /* ================= MEMBER: POIN & HADIAH ================= */
 async function viewPoin(){
@@ -614,7 +638,7 @@ function drawAdminPesanan(){
       <td><b>${esc(o.penerima_nama)}</b> · ${esc(o.penerima_hp)}<div class="mut">${esc(o.penerima_alamat)}, ${esc([o.penerima_kecamatan,o.penerima_kota,o.penerima_kodepos].filter(Boolean).join(', '))}</div><div class="mut">Member: ${esc(o.profiles?.nama||'-')}</div></td>
       <td>${o.items.map(i=>`${esc(i.nama)} ×${i.qty}`).join('<br>')}<div class="mut">${kgJnt(o.berat_gram)} kg</div></td>
       <td>${esc(o.layanan)}<br>${rp(o.ongkir)}</td><td><b>${rp(o.total)}</b></td>
-      <td><span class="st ${o.status}">${o.status}</span>${o.resi?`<div class="mut">Resi: ${esc(o.resi)}</div>`:''}</td>
+      <td><span class="st ${o.status}">${o.status}</span>${o.resi?`<div class="mut">Resi: ${esc(o.resi)} · <a href="#" onclick="lacakResi('${esc(o.resi)}');return false">lacak</a></div>`:''}</td>
       <td style="white-space:nowrap">${aksiOrder(o)}</td></tr>`).join('')}</table></div>`:'<div class="empty">Tidak ada pesanan.</div>'}`;
   $('#ap').value = autoPrint(); $('#ap').onchange = e => { localStorage.setItem('autoPrint', e.target.value); toast('Disimpan'); };
   $('#q').oninput = e => { AP.q = e.target.value; drawAdminPesanan(); const n=$('#q'); n.focus(); n.setSelectionRange(n.value.length,n.value.length); };
@@ -623,7 +647,7 @@ function aksiOrder(o){
   const b = [];
   if (o.status==='menunggu') b.push(`<button class="btn ok sm" onclick="konfirmasi(${o.id})">Konfirmasi</button>`);
   if (o.status==='dikonfirmasi') b.push(`<button class="btn sm" onclick="inputResi(${o.id})">Kirim (resi)</button>`);
-  if (o.status==='dikirim') b.push(`<button class="btn ok sm" onclick="setStatus(${o.id},'selesai')">Selesai</button>`);
+  if (o.status==='dikirim') b.push(`<button class="btn ok sm" onclick="setStatus(${o.id},'selesai')">Selesai</button>`, `<button class="btn g sm" onclick="inputResi(${o.id})">Ubah resi</button>`);
   if (['menunggu','dikonfirmasi','dikirim','selesai'].includes(o.status)) b.push(`<button class="btn g sm" onclick="cetakLabel([${o.id}])">🖨️</button>`);
   b.push(`<a class="btn wa sm" target="_blank" href="https://wa.me/${String(o.penerima_hp).replace(/\D/g,'').replace(/^0/,'62')}?text=${encodeURIComponent(`Halo ${o.penerima_nama}, pesanan ${o.kode} status: ${o.status}${o.resi?`. Resi J&T: ${o.resi}`:''}`)}">WA</a>`);
   b.push(`<button class="btn g sm" title="Tambah poin manual" onclick="poinModal('${o.member_id}','${esc(o.profiles?.nama||'').replace(/'/g,'')}','Pesanan ${o.kode}')">+Poin</button>`);
@@ -636,13 +660,19 @@ async function konfirmasi(id){
 }
 function inputResi(id){
   const o = AP.list.find(x=>x.id===id);
-  modal(`<h2 style="margin-top:0">Kirim pesanan ${esc(o.kode)}</h2><label>No. resi J&T</label><input id="rs" value="${esc(o.resi||'')}" placeholder="JP1234567890">
+  modal(`<h2 style="margin-top:0">Input resi J&T — ${esc(o.kode)}</h2><div class="mut">Isi setelah paket diserahkan ke J&T. Member bisa melacak resi ini di menu Pesanan Saya.</div><label>No. resi J&T</label><input id="rs" value="${esc(o.resi||'')}" placeholder="mis. JP1234567890" autocapitalize="characters">
     <div class="row" style="margin-top:14px"><button class="btn" onclick="simpanResi(${id})">Simpan & tandai dikirim</button><button class="btn g" onclick="closeModal()">Batal</button></div>`);
   setTimeout(()=>$('#rs')?.focus(),50);
 }
 async function simpanResi(id){
-  const resi = $('#rs').value.trim(); if(!resi) return toast('Isi nomor resi', true);
-  try { ok(await sb.from('orders').update({ resi, status:'dikirim' }).eq('id',id)); closeModal(); toast('Status: dikirim'); viewAdminPesanan(); } catch(e){ fail(e); }
+  const resi = $('#rs').value.trim().toUpperCase().replace(/\s+/g,''); if(!resi) return toast('Isi nomor resi', true);
+  try { ok(await sb.from('orders').update({ resi, status:'dikirim' }).eq('id',id)); 
+    const o = AP.list.find(x=>x.id===id); const hp = String(o.penerima_hp).replace(/\D/g,'').replace(/^0/,'62');
+    const wa = `https://wa.me/${hp}?text=${encodeURIComponent(`Halo ${o.penerima_nama}, pesanan ${o.kode} dari ${S.settings.nama_toko||'toko kami'} sudah dikirim via J&T.\nNo. resi: ${resi}\nLacak di: ${location.origin}${location.pathname}#/pesanan\nTerima kasih 🙏`)}`;
+    modal(`<h2 style="margin-top:0">✓ Resi tersimpan</h2><p>Status pesanan <b>${esc(o.kode)}</b> → <b>dikirim</b>. Resi: <b>${esc(resi)}</b></p>
+      <a class="btn wa blk" style="display:block" href="${wa}" target="_blank" onclick="closeModal()">Kabari pembeli via WhatsApp</a>
+      <button class="btn g blk" style="margin-top:8px" onclick="closeModal()">Tutup</button>`);
+    viewAdminPesanan(); } catch(e){ fail(e); }
 }
 async function setStatus(id, s){ try { ok(await sb.from('orders').update({ status:s }).eq('id',id)); toast('Status: '+s); viewAdminPesanan(); } catch(e){ fail(e); } }
 async function batalAdmin(id){ if(!confirm('Batalkan pesanan? Stok akan dikembalikan.')) return; try { ok(await sb.rpc('cancel_order',{p_id:id})); toast('Dibatalkan'); viewAdminPesanan(); } catch(e){ fail(e); } }

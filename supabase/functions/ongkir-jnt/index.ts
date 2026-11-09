@@ -52,6 +52,20 @@ Deno.serve(async (req) => {
       return json({ ok: r.ok, data, error: r.ok ? null : d?.meta?.message });
     }
 
+    // 3) lacak resi J&T
+    if (body.action === "track") {
+      const awb = String(body.awb || "").trim().toUpperCase().replace(/\s+/g, "");
+      if (!/^[A-Z0-9]{6,30}$/.test(awb)) return json({ ok: false, error: "Nomor resi tidak valid" });
+      const qs = new URLSearchParams({ awb, courier: "jnt" });
+      const r = await fetch(`${BASE}/track/waybill?${qs}`, {
+        method: "POST",
+        headers: { key, "Content-Type": "application/x-www-form-urlencoded" },
+        body: qs,
+      });
+      const d = await r.json().catch(() => ({}));
+      return json({ ok: r.ok && !!d?.data, data: d?.data || null, error: r.ok ? null : d?.meta?.message || `HTTP ${r.status}` });
+    }
+
     return json({ ok: false, error: "action tidak dikenal" }, 400);
   } catch (e) {
     return json({ ok: false, error: String(e) }, 500);
