@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "dev.workers.akmalulmizan27.dini_menganti.twa",
+        "sha256_cert_fingerprints": ["2E:F2:32:EC:1C:67:F5:7F:71:D9:43:2B:C6:BE:14:41:71:D4:E7:3E:68:65:D3:09:C0:B9:1F:25:0F:7B:5C:7F"]
+      }
+    }]
