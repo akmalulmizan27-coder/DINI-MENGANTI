@@ -269,7 +269,7 @@ const routes = {
 async function route(){
   const h = (location.hash || '#/katalog').split('?')[0];
   if (h.startsWith('#/admin') && !isAdmin()) { location.hash = S.session ? '#/katalog' : '#/login'; return; }
-  if (['#/checkout','#/pesanan','#/poin','#/profil'].includes(h) && !S.session) { location.hash = '#/login'; return; }
+  if (['#/keranjang','#/checkout','#/pesanan','#/poin','#/profil'].includes(h) && !S.session) { if (h === '#/keranjang') toast('Silakan masuk dulu untuk membuka keranjang'); location.hash = '#/login'; return; }
   renderNav();
   const fn = routes[h] || viewKatalog;
   app.innerHTML = '<div class="empty">Memuat…</div>';
