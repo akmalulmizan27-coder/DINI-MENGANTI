@@ -65,6 +65,8 @@ h1{font-size:19px;margin:4px 0 12px}h2{font-size:16px;margin:16px 0 8px}
 .banner .pt small{display:block;font-weight:400;color:var(--mut);font-size:11px}
 .banner .lg{width:96px;height:96px;border-radius:12px;background:#fff center/cover no-repeat;flex:none;border:3px solid #fff;box-shadow:0 2px 8px #0003}
 .banner .tx{flex:1;min-width:0}
+.banner.bg{background:linear-gradient(90deg,#ee4d2d 0%,#ee4d2df2 28%,#ff7337b8 52%,#ff733700 78%),var(--bimg) right 12% center/cover no-repeat;min-height:150px;padding:20px 24px}
+.banner.bg b{font-size:24px;text-shadow:0 1px 3px #0005}.banner.bg span{text-shadow:0 1px 2px #0004;display:block;max-width:420px}
 .cats{display:flex;gap:8px;overflow-x:auto;padding:12px;background:#fff;border-radius:var(--r);margin-bottom:10px;scrollbar-width:none}
 .cats::-webkit-scrollbar{display:none}
 .sect{background:#fff;padding:12px 14px;color:var(--pri);font-weight:600;border-bottom:3px solid var(--pri);border-radius:var(--r) var(--r) 0 0;margin-bottom:8px;text-transform:uppercase;font-size:14px}
@@ -153,6 +155,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:24px 10px 40px}
 @keyframes pfade{from{opacity:0}}@keyframes pzoom{from{transform:scale(.85);opacity:0}}
 @media(max-width:800px){
   .banner .lg{width:70px;height:70px}
+  .banner.bg{min-height:130px;padding:14px 16px;background:linear-gradient(90deg,#ee4d2df5 0%,#ee4d2de6 45%,#ff733780 75%,#ff733726 100%),var(--bimg) right 30% center/cover no-repeat}.banner.bg b{font-size:16px}.banner.bg span{font-size:12px;max-width:none}.banner.bg .pt{padding:6px 9px;font-size:13px}
   .two{grid-template-columns:1fr}
   .grid{grid-template-columns:repeat(2,1fr);gap:6px}
   main{padding:8px 8px 76px}
@@ -298,7 +301,7 @@ function drawKatalog(){
   if ($('#hq').value !== KAT.q) $('#hq').value = KAT.q;
   const poin = S.profile && !isAdmin() ? `<div class="pt">${(S.profile.poin||0).toLocaleString('id-ID')}<small>poin saya</small></div>` : (!S.session ? `<a class="pt" href="#/daftar">Daftar<small>gratis jadi member</small></a>` : '');
   app.innerHTML = `
-    ${KAT.q ? '' : `<div class="banner" style="padding-left:14px"><div class="lg" style="background-image:url('${esc(S.settings.logo_url||'logo.jpg')}')"></div><div class="tx"><b>${esc(S.settings.nama_toko||'Toko')}</b><span>Belanja hemat, kumpulkan poin & tukar dengan hadiah 🎁</span></div>${poin}</div>`}
+    ${KAT.q ? '' : `<div class="banner bg" style="--bimg:url('${esc(S.settings.banner_url||'banner-bg.jpg')}');padding-left:14px"><div class="lg" style="background-image:url('${esc(S.settings.logo_url||'logo.jpg')}')"></div><div class="tx"><b>${esc(S.settings.nama_toko||'Toko')}</b><span>Belanja hemat, kumpulkan poin & tukar dengan hadiah 🎁</span></div>${poin}</div>`}
     <div class="cats">${kats.map(k=>`<span class="chip ${k===KAT.kat?'on':''}" onclick="KAT.kat='${esc(k).replace(/'/g,"\\'")}';drawKatalog()">${esc(k)}</span>`).join('')}</div>
     ${KAT.q ? '' : barisHtml()}
     <div class="sect">${KAT.q ? `Hasil pencarian "${esc(KAT.q)}" <a href="#" style="float:right;font-size:12px;text-transform:none" onclick="KAT.q='';drawKatalog();return false">hapus ✕</a>` : 'Rekomendasi'}</div>
@@ -1192,6 +1195,11 @@ async function viewAdminPengaturan(){
     <img src="${esc(s.logo_url||'logo.jpg')}" style="width:96px;height:96px;object-fit:cover;border-radius:12px;border:1px solid var(--bd)">
     <label>Ganti logo (opsional, gambar kotak)</label><input type="file" id="fl" accept="image/*">
     <input type="hidden" name="logo_url" value="${esc(s.logo_url||'')}">
+    <h2>Gambar latar banner beranda</h2>
+    <img src="${esc(s.banner_url||'banner-bg.jpg')}" style="width:100%;max-width:320px;height:110px;object-fit:cover;border-radius:8px;border:1px solid var(--bd)">
+    <label>Ganti gambar latar (opsional)</label><input type="file" id="fbg" accept="image/*">
+    <div class="mut">Gambar tampil di sisi kanan banner, menyatu dengan warna oranye. Bebas rasio (kotak/mendatar).</div>
+    <input type="hidden" name="banner_url" value="${esc(s.banner_url||'')}">
     <h2>Pembayaran QRIS</h2>
     <img src="${esc(qrisUrl())}" style="max-height:220px;border-radius:6px;border:1px solid var(--bd)">
     <label>Ganti gambar QRIS (opsional)</label><input type="file" id="fq" accept="image/*">
@@ -1202,7 +1210,7 @@ async function viewAdminPengaturan(){
     <div class="tw"><table><tr><th>Kota</th><th>Per kg</th><th>Estimasi</th><th></th></tr>${tarif.map(t=>`<tr><td>${esc(t.kota)}</td><td>${rp(t.tarif_per_kg)}</td><td>${esc(t.etd)}</td><td><button class="btn g sm" onclick="hapus('tarif_manual',${t.id})">✕</button></td></tr>`).join('')}</table></div>
     <form id="ft" class="row" style="margin-top:10px"><input name="kota" placeholder="Kota" required><input name="tarif_per_kg" type="number" placeholder="Tarif/kg" required><input name="etd" placeholder="2-3 hari"><button class="btn" style="flex:none">+</button></form></div></div>`;
   pasangKoordinat();
-  $('#fs').onsubmit = async e => { e.preventDefault(); try { const fl = $('#fl').files[0]; if (fl) $('[name=logo_url]').value = await uploadFoto(fl, 'logo'); const fq = $('#fq').files[0]; if (fq) { const path = `qris/${Date.now()}.${(fq.name.split('.').pop()||'jpg').toLowerCase()}`; ok(await sb.storage.from('foto').upload(path, fq, { upsert:true, contentType: fq.type })); $('[name=qris_url]').value = sb.storage.from('foto').getPublicUrl(path).data.publicUrl; } const rows = Object.entries(Object.fromEntries(new FormData(e.target))).map(([key,value])=>({key,value}));
+  $('#fs').onsubmit = async e => { e.preventDefault(); try { const fl = $('#fl').files[0]; if (fl) $('[name=logo_url]').value = await uploadFoto(fl, 'logo'); const fbg = $('#fbg').files[0]; if (fbg) $('[name=banner_url]').value = await uploadFoto(fbg, 'iklan'); const fq = $('#fq').files[0]; if (fq) { const path = `qris/${Date.now()}.${(fq.name.split('.').pop()||'jpg').toLowerCase()}`; ok(await sb.storage.from('foto').upload(path, fq, { upsert:true, contentType: fq.type })); $('[name=qris_url]').value = sb.storage.from('foto').getPublicUrl(path).data.publicUrl; } const rows = Object.entries(Object.fromEntries(new FormData(e.target))).map(([key,value])=>({key,value}));
     ok(await sb.from('settings').upsert(rows)); await loadSettings(); toast('Pengaturan disimpan'); } catch(er){ fail(er); } };
   $('#ft').onsubmit = async e => { e.preventDefault(); try { const fd = Object.fromEntries(new FormData(e.target)); ok(await sb.from('tarif_manual').upsert({ kota:fd.kota.trim(), tarif_per_kg:+fd.tarif_per_kg, etd:fd.etd||'2-3 hari' },{onConflict:'kota'})); viewAdminPengaturan(); } catch(er){ fail(er); } };
   if (api) { let tm; $('#oc').oninput = e => { clearTimeout(tm); tm = setTimeout(async ()=>{
