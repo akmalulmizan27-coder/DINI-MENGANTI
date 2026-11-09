@@ -298,6 +298,7 @@ function detailProduk(id){
       <div class="kv"><span>Kategori</span><span>${esc(p.kategori)}</span></div>
       <div class="kv"><span>Berat</span><span>${p.berat_gram} gram</span></div>
       <div class="kv"><span>Pengiriman</span><span>J&T Express dari ${esc(S.settings.origin_nama||'-')}</span></div>
+      ${lokasiToko() ? `<div class="kv"><span>Lokasi toko</span><a href="${lokasiToko()}" target="_blank">📍 Lihat di Google Maps</a></div>` : ''}
       <div class="kv"><span>Poin member</span><span>Kumpulkan poin & tukar hadiah</span></div>
       <div class="inf" style="border-bottom:0;padding-bottom:0"><b>Deskripsi Produk</b></div>
       <div class="ds">${esc(p.deskripsi)||'<span class="mut">Tidak ada deskripsi.</span>'}</div>
@@ -964,6 +965,38 @@ async function formIklan(id){
   };
 }
 
+/* ================= KOORDINAT TOKO ================= */
+const okKoor = (la, lo) => isFinite(la) && isFinite(lo) && Math.abs(la) <= 90 && Math.abs(lo) <= 180 && !(la == 0 && lo == 0);
+function lokasiToko(){
+  const la = parseFloat(S.settings.toko_lat), lo = parseFloat(S.settings.toko_lng);
+  return okKoor(la, lo) ? `https://www.google.com/maps?q=${la},${lo}` : '';
+}
+function pasangKoordinat(){
+  const upd = () => {
+    const la = parseFloat($('#tlat').value), lo = parseFloat($('#tlng').value), ok_ = okKoor(la, lo);
+    $('#tbuka').href = ok_ ? `https://www.google.com/maps?q=${la},${lo}` : '#';
+    $('#tbuka').style.opacity = ok_ ? 1 : .5;
+    $('#tpeta').innerHTML = ok_ ? `<iframe title="Peta toko" style="width:100%;height:220px;border:1px solid var(--bd);border-radius:6px" loading="lazy"
+      src="https://www.openstreetmap.org/export/embed.html?bbox=${lo-0.004},${la-0.003},${lo+0.004},${la+0.003}&layer=mapnik&marker=${la},${lo}"></iframe>` : '';
+  };
+  $('#tlat').oninput = upd; $('#tlng').oninput = upd;
+  $('#tgm').oninput = e => {
+    const t = decodeURIComponent(e.target.value);
+    const m = t.match(/@(-?\d+\.\d+),\s*(-?\d+\.\d+)/) || t.match(/[?&](?:q|ll|query)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/) || t.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || t.match(/(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/);
+    if (m) { $('#tlat').value = (+m[1]).toFixed(6); $('#tlng').value = (+m[2]).toFixed(6); upd(); toast('Koordinat terisi — klik Simpan pengaturan'); }
+    else if (/maps\.app\.goo\.gl|goo\.gl\/maps/.test(t)) toast('Link pendek tidak berisi koordinat. Buka linknya, lalu salin angka koordinat (tekan lama titik di peta).', true);
+  };
+  upd();
+}
+function ambilGps(){
+  if (!navigator.geolocation) return toast('Browser tidak mendukung GPS', true);
+  toast('Mengambil lokasi…');
+  navigator.geolocation.getCurrentPosition(p => {
+    $('#tlat').value = p.coords.latitude.toFixed(6); $('#tlng').value = p.coords.longitude.toFixed(6);
+    $('#tlat').dispatchEvent(new Event('input')); toast(`Lokasi didapat (akurasi ±${Math.round(p.coords.accuracy)} m) — klik Simpan pengaturan`);
+  }, e => toast(e.code === 1 ? 'Izin lokasi ditolak. Izinkan akses lokasi di browser.' : 'Gagal ambil lokasi: ' + e.message, true), { enableHighAccuracy:true, timeout:15000 });
+}
+
 /* ================= ADMIN: PENGATURAN + TARIF MANUAL ================= */
 async function viewAdminPengaturan(){
   await loadSettings();
@@ -975,6 +1008,12 @@ async function viewAdminPengaturan(){
     <label>No. WhatsApp toko (penerima pesanan)</label><input name="wa_toko" value="${esc(s.wa_toko)}" placeholder="628xxxx">
     <label>No. HP pengirim (di label)</label><input name="hp_toko" value="${esc(s.hp_toko)}">
     <label>Alamat pengirim</label><textarea name="alamat_toko" rows="2">${esc(s.alamat_toko)}</textarea>
+    <label>Titik koordinat toko</label>
+    <div class="row"><input name="toko_lat" id="tlat" placeholder="Latitude, mis. -7.2756" value="${esc(s.toko_lat||'')}" inputmode="decimal"><input name="toko_lng" id="tlng" placeholder="Longitude, mis. 112.5913" value="${esc(s.toko_lng||'')}" inputmode="decimal"></div>
+    <input id="tgm" placeholder="atau tempel link Google Maps / koordinat '-7.27, 112.59' di sini" style="margin-top:6px">
+    <div class="row" style="margin-top:6px"><button type="button" class="btn o" onclick="ambilGps()">📍 Pakai lokasi saya sekarang (GPS)</button><a class="btn g" id="tbuka" target="_blank" style="text-align:center">🗺 Cek di Google Maps</a></div>
+    <div id="tpeta" style="margin-top:8px"></div>
+    <div class="mut">Tips: buka Google Maps → tekan lama titik toko → salin koordinat → tempel di kolom atas.</div>
     <h2>Ongkir J&T</h2>
     <p class="mut">Status API ongkir: ${api?'<b style="color:var(--ok)">AKTIF</b> (RajaOngkir/Komerce)':'<b style="color:var(--warn)">belum aktif</b> → memakai tarif manual di samping'}</p>
     <label>Kota/kecamatan asal</label><input id="oc" placeholder="Cari kecamatan asal (butuh API aktif)" value="${esc(s.origin_nama)}" ${api?'':'disabled'}><div id="osug"></div>
@@ -990,6 +1029,7 @@ async function viewAdminPengaturan(){
     <div class="card" style="align-self:start"><h2 style="margin-top:0">Tarif manual J&T per kota</h2><p class="mut">Dipakai bila API ongkir belum aktif. Berat dibulatkan aturan J&T (toleransi 0,3 kg).</p>
     <div class="tw"><table><tr><th>Kota</th><th>Per kg</th><th>Estimasi</th><th></th></tr>${tarif.map(t=>`<tr><td>${esc(t.kota)}</td><td>${rp(t.tarif_per_kg)}</td><td>${esc(t.etd)}</td><td><button class="btn g sm" onclick="hapus('tarif_manual',${t.id})">✕</button></td></tr>`).join('')}</table></div>
     <form id="ft" class="row" style="margin-top:10px"><input name="kota" placeholder="Kota" required><input name="tarif_per_kg" type="number" placeholder="Tarif/kg" required><input name="etd" placeholder="2-3 hari"><button class="btn" style="flex:none">+</button></form></div></div>`;
+  pasangKoordinat();
   $('#fs').onsubmit = async e => { e.preventDefault(); try { const fq = $('#fq').files[0]; if (fq) { const path = `qris/${Date.now()}.${(fq.name.split('.').pop()||'jpg').toLowerCase()}`; ok(await sb.storage.from('foto').upload(path, fq, { upsert:true, contentType: fq.type })); $('[name=qris_url]').value = sb.storage.from('foto').getPublicUrl(path).data.publicUrl; } const rows = Object.entries(Object.fromEntries(new FormData(e.target))).map(([key,value])=>({key,value}));
     ok(await sb.from('settings').upsert(rows)); await loadSettings(); toast('Pengaturan disimpan'); } catch(er){ fail(er); } };
   $('#ft').onsubmit = async e => { e.preventDefault(); try { const fd = Object.fromEntries(new FormData(e.target)); ok(await sb.from('tarif_manual').upsert({ kota:fd.kota.trim(), tarif_per_kg:+fd.tarif_per_kg, etd:fd.etd||'2-3 hari' },{onConflict:'kota'})); viewAdminPengaturan(); } catch(er){ fail(er); } };
