@@ -924,9 +924,10 @@ function barisHtml(){
   const ads = KAT.ads || [];
   const no = String(S.settings.wa_toko||'').replace(/\D/g,'').replace(/^0/,'62');
   const wa = `https://wa.me/${no}?text=${encodeURIComponent('Halo, saya mau pasang iklan baris di ' + (S.settings.nama_toko||'toko'))}`;
-  const items = ads.length
-    ? ads.map((a,i)=>`<div class="it" ${isVideo(a.gambar_url)?'':`style="background-image:url('${esc(a.gambar_url)}')"`} title="${esc(a.judul)}" onclick="${a.link?`bukaLinkIklan(KAT.ads[${i}].link)`:''}">${isVideo(a.gambar_url)?`<video src="${esc(a.gambar_url)}" autoplay muted loop playsinline preload="metadata"></video>`:''}</div>`).join('')
-    : [1,2,3].map(()=>`<a class="it ph" href="${wa}" target="_blank">📢 SPACE IKLAN DISEWAKAN<small>Hubungi toko untuk pasang iklan</small></a>`).join('');
+  const SLOT = 3; // jumlah minimal kotak; slot kosong tampil sebagai "space disewakan"
+  const kosong = Math.max(SLOT - ads.length, 0);
+  const items = ads.map((a,i)=>`<div class="it" ${isVideo(a.gambar_url)?'':`style="background-image:url('${esc(a.gambar_url)}')"`} title="${esc(a.judul)}" onclick="${a.link?`bukaLinkIklan(KAT.ads[${i}].link)`:''}">${isVideo(a.gambar_url)?`<video src="${esc(a.gambar_url)}" autoplay muted loop playsinline preload="metadata"></video>`:''}</div>`).join('')
+    + Array.from({length:kosong}, ()=>`<a class="it ph" href="${wa}" target="_blank">📢 SPACE IKLAN DISEWAKAN<small>Hubungi toko untuk pasang iklan</small></a>`).join('');
   return `<div class="baris"><div class="hd">${ads.length ? 'Promo Spesial' : 'Iklan Baris (space disewakan)'}</div>
     <button class="nv l" onclick="geserBaris(-1)" aria-label="Sebelumnya">‹</button><button class="nv r" onclick="geserBaris(1)" aria-label="Berikutnya">›</button>
     <div class="trk" id="trk">${items}</div></div>`;
