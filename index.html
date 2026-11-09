@@ -247,8 +247,10 @@ function renderNav(){
   else html = L('#/pesanan','Pesanan Saya') + L('#/poin',`Poin <span class="badge">${S.profile?.poin??0}</span>`) + L('#/profil',esc(S.profile?.nama||'Profil')) + `<a href="#" onclick="logout();return false">Keluar</a>`;
   $('#nav').innerHTML = html;
   const B = (href, ic, txt, extra='') => `<a href="${href}" class="${(href==='#/katalog' ? (h==='#/katalog'||h==='#/'||h==='') : h.startsWith(href))?'on':''}">${ic}${extra}<span>${txt}</span></a>`;
-  $('#bnav').innerHTML = B('#/katalog', IC.home, 'Beranda') + B('#/keranjang', IC.cart, 'Keranjang', n?`<span class="cbadge">${n}</span>`:'')
-    + B('#/pesanan', IC.box, 'Pesanan') + B('#/poin', IC.coin, 'Poin') + B(S.session?'#/profil':'#/login', IC.user, S.session?'Saya':'Masuk');
+  // belum login: hanya tombol Masuk; sudah login: menu lengkap
+  $('#bnav').innerHTML = !S.session ? B('#/login', IC.user, 'Masuk')
+    : B('#/katalog', IC.home, 'Beranda') + B('#/keranjang', IC.cart, 'Keranjang', n?`<span class="cbadge">${n}</span>`:'')
+    + B('#/pesanan', IC.box, 'Pesanan') + B('#/poin', IC.coin, 'Poin') + B('#/profil', IC.user, 'Saya');
 }
 function cariHeader(){
   KAT.q = $('#hq').value.trim(); KAT.kat = 'Semua';
