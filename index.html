@@ -121,6 +121,9 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:24px 10px 40px}
 .popik{position:fixed;inset:0;z-index:80;background:#000a;display:flex;align-items:center;justify-content:center;padding:24px;animation:pfade .2s}
 .popik .box{position:relative;max-width:min(380px,88vw);animation:pzoom .25s}
 .popik img{display:block;width:100%;max-height:78vh;object-fit:contain;border-radius:10px}
+.popik video.md{display:block;width:100%;max-height:78vh;object-fit:contain;border-radius:10px;background:#000}
+.popik .snd{position:absolute;top:10px;left:10px;width:34px;height:34px;border-radius:50%;border:0;background:#0008;color:#fff;cursor:pointer;z-index:2}
+.baris .it video{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
 .popik .x{position:absolute;top:-14px;right:-14px;width:36px;height:36px;border-radius:50%;border:2px solid #fff;background:#0009;color:#fff;font-size:16px;cursor:pointer;z-index:2}
 .popik .cta{display:block;margin:12px auto 0;border:0;border-radius:99px;background:linear-gradient(#ffd54a,#ffb300);color:#7a2e00;font-weight:800;font-size:16px;padding:11px 28px;cursor:pointer;box-shadow:0 3px 0 #c77a00}
 .popik .dots{display:flex;gap:5px;justify-content:center;margin-top:10px}.popik .dots span{width:7px;height:7px;border-radius:50%;background:#fff6}.popik .dots span.on{background:#fff}
@@ -895,14 +898,15 @@ function popupKe(list, i){
   const el = document.createElement('div'); el.className = 'popik'; el.id = 'popIk';
   el.innerHTML = `<div class="box">
       <button class="x" aria-label="Tutup">✕</button>
-      <img src="${esc(p.gambar_url)}" alt="${esc(p.judul)}" ${p.link?'style="cursor:pointer"':''}>
+      ${isVideo(p.gambar_url) ? `<video class="md" src="${esc(p.gambar_url)}" autoplay muted loop playsinline ${p.link?'style="cursor:pointer"':''}></video><button class="snd" aria-label="Suara">🔇</button>` : `<img class="md" src="${esc(p.gambar_url)}" alt="${esc(p.judul)}" ${p.link?'style="cursor:pointer"':''}>`}
       ${p.teks_tombol ? `<button class="cta">${esc(p.teks_tombol)}</button>` : ''}
       ${list.length>1 ? `<div class="dots">${list.map((_,k)=>`<span class="${k===i?'on':''}"></span>`).join('')}</div>` : ''}
     </div>`;
   el.querySelector('.x').onclick = () => popupKe(list, i+1);
   el.onclick = e => { if (e.target === el) popupKe(list, i+1); };
   const buka = () => { if (!p.link) return; sessionStorage.setItem('popupDitutup','1'); el.remove(); bukaLinkIklan(p.link); };
-  el.querySelector('img').onclick = buka; el.querySelector('.cta')?.addEventListener('click', buka);
+  el.querySelector('.md').onclick = buka; el.querySelector('.cta')?.addEventListener('click', buka);
+  el.querySelector('.snd')?.addEventListener('click', ev => { const v = el.querySelector('video'); v.muted = !v.muted; ev.target.textContent = v.muted ? '🔇' : '🔊'; if (!v.muted) v.play(); });
   document.body.appendChild(el);
 }
 async function bukaLinkIklan(link){
@@ -921,7 +925,7 @@ function barisHtml(){
   const no = String(S.settings.wa_toko||'').replace(/\D/g,'').replace(/^0/,'62');
   const wa = `https://wa.me/${no}?text=${encodeURIComponent('Halo, saya mau pasang iklan baris di ' + (S.settings.nama_toko||'toko'))}`;
   const items = ads.length
-    ? ads.map((a,i)=>`<div class="it" style="background-image:url('${esc(a.gambar_url)}')" title="${esc(a.judul)}" onclick="${a.link?`bukaLinkIklan(KAT.ads[${i}].link)`:''}"></div>`).join('')
+    ? ads.map((a,i)=>`<div class="it" ${isVideo(a.gambar_url)?'':`style="background-image:url('${esc(a.gambar_url)}')"`} title="${esc(a.judul)}" onclick="${a.link?`bukaLinkIklan(KAT.ads[${i}].link)`:''}">${isVideo(a.gambar_url)?`<video src="${esc(a.gambar_url)}" autoplay muted loop playsinline preload="metadata"></video>`:''}</div>`).join('')
     : [1,2,3].map(()=>`<a class="it ph" href="${wa}" target="_blank">📢 SPACE IKLAN DISEWAKAN<small>Hubungi toko untuk pasang iklan</small></a>`).join('');
   return `<div class="baris"><div class="hd">${ads.length ? 'Promo Spesial' : 'Iklan Baris (space disewakan)'}</div>
     <button class="nv l" onclick="geserBaris(-1)" aria-label="Sebelumnya">‹</button><button class="nv r" onclick="geserBaris(1)" aria-label="Berikutnya">›</button>
@@ -941,6 +945,14 @@ function jalankanBaris(){
   BARIS_T = setInterval(()=>{ if (!document.body.contains(t)) return clearInterval(BARIS_T); if (!jeda) geserBaris(1); }, 3500);
 }
 
+const MAKS_VIDEO_MB = 20;
+const isVideo = u => /\.(mp4|webm|mov)(\?|#|$)/i.test(String(u||''));
+async function uploadVideo(file, folder){
+  const ext = (file.type === 'video/webm') ? 'webm' : 'mp4';
+  const path = `${folder}/${Date.now()}-${file.name.replace(/\.[^.]+$/,'').replace(/[^\w]/g,'_').slice(0,40)}.${ext}`;
+  ok(await sb.storage.from('foto').upload(path, file, { upsert:true, contentType: file.type || 'video/mp4', cacheControl: '31536000' }));
+  return sb.storage.from('foto').getPublicUrl(path).data.publicUrl;
+}
 let AI = [], AI_TAB = 'popup';
 async function viewAdminIklan(){
   AI = ok(await sb.from('popups').select('*').eq('posisi', AI_TAB).order('urutan').order('created_at',{ascending:false}));
@@ -952,7 +964,7 @@ async function viewAdminIklan(){
     <p class="mut">${AI_TAB==='popup' ? 'Pop Up muncul saat pengunjung membuka web (sekali per kunjungan) dan hilang saat tombol ✕ diklik. Beberapa iklan tayang ditampilkan bergantian sesuai urutan.' : 'Iklan Baris tampil di beranda (di bawah kategori) dan bergeser otomatis kanan–kiri. Jika belum ada iklan, tampil kotak "Space iklan disewakan".'}</p>
     <div class="toolbar"><button class="btn" onclick="formIklan()">+ Tambah ${AI_TAB==='popup'?'Pop Up':'Iklan Baris'}</button>${AI_TAB==='popup'?`<button class="btn o" onclick="sessionStorage.removeItem('popupDitutup');pratinjauIklan()">👁 Pratinjau pop up tayang</button>`:`<a class="btn o" href="#/katalog">👁 Lihat di beranda</a>`}</div>
     ${AI.length?`<div class="tw"><table><tr><th>Gambar</th><th>Judul</th><th>Klik menuju</th><th>Periode</th><th>Urutan</th><th>Status</th><th></th></tr>
-    ${AI.map(p=>`<tr><td><img src="${esc(p.gambar_url)}" style="width:60px;height:80px;object-fit:cover;border-radius:4px"></td>
+    ${AI.map(p=>`<tr><td>${isVideo(p.gambar_url)?`<video src="${esc(p.gambar_url)}#t=0.5" muted preload="metadata" style="width:60px;height:80px;object-fit:cover;border-radius:4px;background:#000"></video><div class="mut">🎬 video</div>`:`<img src="${esc(p.gambar_url)}" style="width:60px;height:80px;object-fit:cover;border-radius:4px">`}</td>
       <td><b>${esc(p.judul||'-')}</b>${p.teks_tombol?`<div class="mut">Tombol: ${esc(p.teks_tombol)}</div>`:''}</td>
       <td class="mut">${p.link?.startsWith('produk:') ? 'Halaman produk' : esc(p.link||'-')}</td><td class="mut">${p.mulai||'…'} s/d ${p.selesai||'…'}</td><td>${p.urutan}</td><td>${st(p)}</td>
       <td style="white-space:nowrap"><button class="btn g sm" onclick="formIklan(${p.id})">Edit</button> <button class="btn g sm" onclick="togIklan(${p.id},${!p.aktif})">${p.aktif?'Matikan':'Aktifkan'}</button></td></tr>`).join('')}</table></div>`:'<div class="empty">Belum ada iklan. Klik "+ Tambah iklan".</div>'}`;
@@ -970,9 +982,9 @@ async function formIklan(id){
   const jenis = p.link?.startsWith('produk:') ? 'produk' : p.link ? 'url' : '';
   modal(`<h2 style="margin-top:0">${id?'Edit':'Tambah'} ${AI_TAB==='popup'?'Pop Up':'Iklan Baris'}</h2><form id="fi">
     <label>Judul (untuk catatan admin)</label><input name="judul" value="${esc(p.judul)}" placeholder="mis. Promo Gajian">
-    <label>Gambar iklan ${id?'(kosongkan jika tidak diganti)':''}</label><input type="file" id="fg" accept="image/*" ${id?'':'required'}>
-    <div class="mut">${AI_TAB==='popup' ? 'Disarankan gambar tegak (rasio 3:4 atau 9:16), maks. ±1 MB.' : 'Disarankan gambar mendatar rasio 16:7 (mis. 1200×525 px), maks. ±1 MB.'}</div>
-    <img id="pv" src="${esc(p.gambar_url)}" style="max-height:160px;margin-top:6px;border-radius:6px;${p.gambar_url?'':'display:none'}">
+    <label>Gambar atau video MP4 ${id?'(kosongkan jika tidak diganti)':''}</label><input type="file" id="fg" accept="image/*,video/mp4,video/webm" ${id?'':'required'}>
+    <div class="mut">${AI_TAB==='popup' ? 'Gambar/video tegak (rasio 3:4 atau 9:16).' : 'Gambar/video mendatar rasio 16:7 (mis. 1200×525 px).'} Video MP4 maks. ${MAKS_VIDEO_MB} MB, sebaiknya 5–15 detik — diputar otomatis tanpa suara & berulang.</div>
+    <div id="pvw" style="margin-top:6px">${p.gambar_url ? (isVideo(p.gambar_url) ? `<video src="${esc(p.gambar_url)}" muted autoplay loop playsinline style="max-height:160px;border-radius:6px"></video>` : `<img src="${esc(p.gambar_url)}" style="max-height:160px;border-radius:6px">`) : ''}</div>
     <label>Saat iklan diklik, buka</label>
     <select id="lj"><option value="">Tidak ada (hanya gambar)</option><option value="produk" ${jenis==='produk'?'selected':''}>Halaman produk</option><option value="url" ${jenis==='url'?'selected':''}>Link web / WhatsApp</option></select>
     <select id="lp" style="margin-top:6px;${jenis==='produk'?'':'display:none'}">${prods.map(x=>`<option value="${x.id}" ${p.link==='produk:'+x.id?'selected':''}>${esc(x.nama)}</option>`).join('')}</select>
@@ -983,7 +995,10 @@ async function formIklan(id){
       <div><label class="row" style="flex:none;gap:6px;margin-top:30px"><input type="checkbox" name="aktif" ${p.aktif?'checked':''} style="width:auto;flex:none"> Aktif</label></div></div>
     <div class="row" style="margin-top:14px"><button class="btn">Simpan</button>${id?`<button type="button" class="btn err" style="flex:none" onclick="hapus('popups',${id})">Hapus</button>`:''}<button type="button" class="btn g" onclick="closeModal()">Batal</button></div></form>`);
   $('#lj').onchange = e => { $('#lp').style.display = e.target.value==='produk'?'':'none'; $('#lu').style.display = e.target.value==='url'?'':'none'; };
-  $('#fg').onchange = e => { const f = e.target.files[0]; if (f) { $('#pv').src = URL.createObjectURL(f); $('#pv').style.display=''; } };
+  $('#fg').onchange = e => { const f = e.target.files[0]; if (!f) return;
+    if (f.type.startsWith('video/') && f.size > MAKS_VIDEO_MB*1024*1024) { toast(`Video ${(f.size/1048576).toFixed(1)} MB — maksimal ${MAKS_VIDEO_MB} MB. Kompres dulu (mis. pakai CapCut, resolusi 720p).`, true); e.target.value=''; return; }
+    const u = URL.createObjectURL(f);
+    $('#pvw').innerHTML = f.type.startsWith('video/') ? `<video src="${u}" muted autoplay loop playsinline style="max-height:160px;border-radius:6px"></video><div class="mut">🎬 ${(f.size/1048576).toFixed(1)} MB</div>` : `<img src="${u}" style="max-height:160px;border-radius:6px">`; };
   $('#fi').onsubmit = async e => {
     e.preventDefault(); const b = e.target.querySelector('button'); b.disabled = true;
     try {
@@ -991,7 +1006,7 @@ async function formIklan(id){
       let link = j==='produk' ? 'produk:'+$('#lp').value : j==='url' ? $('#lu').value.trim() : '';
       if (j==='url' && link && !/^https?:\/\//.test(link)) link = 'https://' + link;
       const row = { posisi:AI_TAB, judul:fd.judul, teks_tombol:fd.teks_tombol, link, mulai:fd.mulai||null, selesai:fd.selesai||null, urutan:+fd.urutan||0, aktif:!!fd.aktif, gambar_url:p.gambar_url };
-      const f = $('#fg').files[0]; if (f) row.gambar_url = await uploadFoto(f, 'iklan');
+      const f = $('#fg').files[0]; if (f) { b.textContent = f.type.startsWith('video/') ? 'Mengupload video…' : 'Menyimpan…'; row.gambar_url = f.type.startsWith('video/') ? await uploadVideo(f, 'iklan') : await uploadFoto(f, 'iklan'); }
       ok(id ? await sb.from('popups').update(row).eq('id',id) : await sb.from('popups').insert(row));
       closeModal(); toast('Iklan tersimpan'); viewAdminIklan();
     } catch(er){ fail(er); b.disabled = false; }
