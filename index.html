@@ -185,7 +185,10 @@ const SUPABASE_URL = 'https://xkwaudqodbcwjfdhrunu.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_cVpGcGWXl_8fKrDLxDFlGg_vQ53qLhx';
 /* =============================================== */
 
-const sb = (DEMO_MODE && window.DemoDB) ? DemoDB.createClient() : supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// link reset password dari email membawa "type=recovery" di alamat — dicatat sebelum Supabase membersihkannya
+const MODE_RESET = /type=recovery/.test(location.hash + location.search);
+const ERR_LINK = (location.hash.match(/error_description=([^&]+)/) || [])[1];
+const sb = (DEMO_MODE && window.DemoDB) ? DemoDB.createClient() : supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth:{ flowType:'implicit', detectSessionInUrl:true } });
 const S = { session:null, profile:null, settings:{}, cart: JSON.parse(localStorage.getItem('cart')||'[]'), rt:null };
 const $ = s => document.querySelector(s);
 const app = $('#app');
@@ -220,11 +223,16 @@ async function init(){
   try { await loadSettings(); } catch(e){ app.innerHTML = `<div class="card">Gagal konek Supabase. Cek SUPABASE_URL & ANON KEY di index.html.<br><span class="mut">${esc(e.message)}</span></div>`; return; }
   const { data:{ session } } = await sb.auth.getSession();
   S.session = session; await loadProfile();
-  sb.auth.onAuthStateChange(async (_e, s) => { S.session = s; await loadProfile(); setupRealtime(); route(); });
+  // bersihkan token dari alamat (#access_token=… / #error=…) supaya router normal
+  if (/^#(access_token|error|type)=/.test(location.hash) || /[?&]code=/.test(location.search)) history.replaceState(null, '', location.pathname + '#/katalog');
+  sb.auth.onAuthStateChange(async (ev, s) => { S.session = s; await loadProfile(); setupRealtime(); route(); if (ev === 'PASSWORD_RECOVERY') formPasswordBaru(true); });
   setupRealtime();
   window.addEventListener('hashchange', route);
   await route();
-  tampilkanPopup();
+  if (ERR_LINK) toast('Link reset tidak valid / kedaluwarsa. Minta link baru atau hubungi admin.', true);
+  if (MODE_RESET && S.session) formPasswordBaru(true);
+  else if (S.profile?.wajib_ganti_pw) formPasswordBaru(false);
+  else tampilkanPopup();
 }
 
 /* ================= NAV & ROUTER ================= */
@@ -377,12 +385,51 @@ function viewLogin(){
     b.disabled = false;
     if (error) return toast(error.message === 'Invalid login credentials' ? 'Email/ID atau password salah' : error.message, true);
     await loadProfile(); location.hash = isAdmin() ? '#/admin/dashboard' : (S.cart.length ? '#/keranjang' : '#/katalog');
+    if (S.profile?.wajib_ganti_pw) setTimeout(()=>formPasswordBaru(false), 300);
   };
 }
-async function lupaPw(){
-  const email = prompt('Masukkan email akun Anda:'); if(!email) return;
-  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname + '#/profil' });
-  error ? fail(error) : toast('Link reset password dikirim ke email');
+function lupaPw(){
+  const no = String(S.settings.wa_toko||'').replace(/\D/g,'').replace(/^0/,'62');
+  modal(`<h2 style="margin-top:0">Lupa password</h2>
+    <p class="mut">Pilih salah satu cara:</p>
+    <b>1. Lewat email</b>
+    <label>Email akun Anda</label><input id="lpEmail" type="email" placeholder="nama@email.com" value="${esc($('[name=email]')?.value?.includes('@') ? $('[name=email]').value : '')}">
+    <button class="btn blk" style="margin-top:8px" id="lpKirim" onclick="kirimLinkReset()">Kirim link reset ke email</button>
+    <div class="mut" style="margin-top:4px">Cek kotak masuk / folder spam, lalu klik linknya untuk membuat password baru.</div>
+    <hr style="border:0;border-top:1px solid var(--bd);margin:16px 0">
+    <b>2. Lewat admin toko (WhatsApp)</b>
+    <div class="mut">Admin akan memberi password sementara lewat WA.</div>
+    <a class="btn wa blk" style="display:block;margin-top:8px" target="_blank" id="lpWa" href="https://wa.me/${no}?text=${encodeURIComponent('Halo admin, saya lupa password akun member. Mohon reset password akun saya.\nNama: \nNo. HP: \nEmail: ')}">Minta reset via WhatsApp</a>
+    <button class="btn g blk" style="margin-top:8px" onclick="closeModal()">Tutup</button>`);
+  const upd = () => { const e = $('#lpEmail').value.trim(); $('#lpWa').href = `https://wa.me/${no}?text=${encodeURIComponent(`Halo admin, saya lupa password akun member. Mohon reset password akun saya.\nEmail: ${e}`)}`; };
+  $('#lpEmail').oninput = upd; if ($('#lpEmail').value) upd();
+}
+async function kirimLinkReset(){
+  const email = $('#lpEmail').value.trim();
+  if (!/^\S+@\S+\.\S+$/.test(email)) return toast('Isi email yang benar', true);
+  const b = $('#lpKirim'); b.disabled = true; b.textContent = 'Mengirim…';
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  b.disabled = false; b.textContent = 'Kirim link reset ke email';
+  if (error) return toast(/rate limit/i.test(error.message) ? 'Batas kirim email tercapai. Coba lagi nanti atau minta reset via WhatsApp admin.' : error.message, true);
+  closeModal(); toast(`Link reset dikirim ke ${email}. Cek juga folder spam.`);
+}
+function formPasswordBaru(dariEmail){
+  modal(`<h2 style="margin-top:0">🔑 Buat password baru</h2>
+    <p class="mut">${dariEmail ? 'Link reset valid. Silakan buat password baru untuk akun Anda.' : 'Akun Anda baru di-reset oleh admin. Demi keamanan, ganti password sementara dengan password Anda sendiri.'}</p>
+    <label>Password baru (min. 6 karakter)</label><input id="pb1" type="password" autocomplete="new-password">
+    <label>Ulangi password baru</label><input id="pb2" type="password" autocomplete="new-password">
+    <button class="btn blk" style="margin-top:12px" id="pbSimpan" onclick="simpanPasswordBaru()">Simpan password baru</button>`);
+  setTimeout(()=>$('#pb1')?.focus(), 50);
+}
+async function simpanPasswordBaru(){
+  const a = $('#pb1').value, b = $('#pb2').value;
+  if (a.length < 6) return toast('Password minimal 6 karakter', true);
+  if (a !== b) return toast('Ulangi password tidak sama', true);
+  $('#pbSimpan').disabled = true;
+  const { error } = await sb.auth.updateUser({ password:a });
+  if (error) { $('#pbSimpan').disabled = false; return fail(error); }
+  await sb.from('profiles').update({ wajib_ganti_pw:false }).eq('id', S.session.user.id);
+  await loadProfile(); closeModal(); toast('✓ Password baru tersimpan');
 }
 function viewDaftar(){
   app.innerHTML = `<div class="auth card"><h1>Daftar Member</h1>
@@ -630,7 +677,7 @@ function viewProfil(){
     <button class="btn g blk" style="margin-top:18px;color:var(--err)" onclick="logout()">Keluar dari akun</button></div>`;
   $('#f').onsubmit = async e => { e.preventDefault(); try { ok(await sb.from('profiles').update(Object.fromEntries(new FormData(e.target))).eq('id',S.session.user.id)); await loadProfile(); toast('Profil disimpan'); } catch(er){ fail(er); } };
 }
-async function gantiPw(){ const pw = $('#pw').value; if (pw.length<6) return toast('Minimal 6 karakter', true); const { error } = await sb.auth.updateUser({ password:pw }); error?fail(error):toast('Password diganti'); }
+async function gantiPw(){ const pw = $('#pw').value; if (pw.length<6) return toast('Minimal 6 karakter', true); const { error } = await sb.auth.updateUser({ password:pw }); if (error) return fail(error); await sb.from('profiles').update({ wajib_ganti_pw:false }).eq('id', S.session.user.id); toast('Password diganti'); }
 
 /* ================= ADMIN: DASHBOARD ================= */
 async function viewAdminDash(){
@@ -860,8 +907,25 @@ async function viewAdminMember(){
     AM.filter(m=>(m.nama+m.no_hp).toLowerCase().includes(q.toLowerCase())).map(m=>`<tr><td><b>${esc(m.nama||'(tanpa nama)')}</b></td><td>${esc(m.no_hp)}</td>
     <td class="mut">${esc([m.alamat,m.kota].filter(Boolean).join(', '))}</td><td>${m.role==='admin'?'<span class="st dikonfirmasi">admin</span>':'member'}</td>
     <td><b style="font-size:16px">${m.poin.toLocaleString('id-ID')}</b></td><td class="mut">${tgl(m.created_at)}</td>
-    <td style="white-space:nowrap"><button class="btn sm" onclick="poinModal('${m.id}','${esc(m.nama).replace(/'/g,'')}')">± Poin</button> <button class="btn g sm" onclick="riwayatPoin('${m.id}','${esc(m.nama).replace(/'/g,'')}')">Riwayat</button></td></tr>`).join('');
+    <td style="white-space:nowrap"><button class="btn sm" onclick="poinModal('${m.id}','${esc(m.nama).replace(/'/g,'')}')">± Poin</button> <button class="btn g sm" onclick="riwayatPoin('${m.id}','${esc(m.nama).replace(/'/g,'')}')">Riwayat</button>${m.role!=='admin'?` <button class="btn g sm" onclick="resetPwMember('${m.id}')">🔑 Reset PW</button>`:''}</td></tr>`).join('');
   draw(); $('#q').oninput = e => draw(e.target.value);
+}
+async function resetPwMember(id){
+  const m = AM.find(x=>x.id===id); if (!m) return;
+  if (!confirm(`Reset password ${m.nama||'member ini'}? Password lama tidak bisa dipakai lagi.`)) return;
+  try {
+    const pw = ok(await sb.rpc('admin_reset_password', { p_member:id }));
+    const email = ok(await sb.rpc('admin_email_member', { p_member:id })) || '';
+    const hp = String(m.no_hp||'').replace(/\D/g,'').replace(/^0/,'62');
+    const pesan = `Halo ${m.nama||''}, password akun ${S.settings.nama_toko||'toko'} Anda sudah di-reset.\nEmail: ${email}\nPassword sementara: ${pw}\n\nSilakan masuk di ${location.origin}${location.pathname}#/login lalu buat password baru. Jangan bagikan password ini ke siapa pun.`;
+    modal(`<h2 style="margin-top:0">✓ Password di-reset</h2>
+      <p>Member: <b>${esc(m.nama||'-')}</b><br>Email: <b>${esc(email)}</b></p>
+      <div class="card" style="box-shadow:none;border:1px dashed var(--pri);text-align:center;font-size:22px;font-weight:800;letter-spacing:2px;font-family:monospace">${esc(pw)}</div>
+      <p class="mut">Password sementara ini hanya tampil sekali. Saat member login, ia langsung diminta membuat password baru.</p>
+      ${hp ? `<a class="btn wa blk" style="display:block" target="_blank" href="https://wa.me/${hp}?text=${encodeURIComponent(pesan)}">Kirim ke WhatsApp member</a>` : '<p class="mut">Member belum mengisi No. HP — sampaikan password secara langsung.</p>'}
+      <button class="btn g blk" style="margin-top:8px" onclick="navigator.clipboard?.writeText(${JSON.stringify(pw)});toast('Disalin')">Salin password</button>
+      <button class="btn g blk" style="margin-top:8px" onclick="closeModal()">Tutup</button>`);
+  } catch(e){ fail(e); }
 }
 function poinModal(id, nama, ket=''){
   modal(`<h2 style="margin-top:0">Poin manual — ${esc(nama)}</h2>

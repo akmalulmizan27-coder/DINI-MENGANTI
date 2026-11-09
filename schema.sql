@@ -376,3 +376,12 @@ alter table public.products
 -- create_order menerima item {id, qty, satuan:'pack'|'slof'|'ball'}: harga sesuai satuan,
 -- stok dipotong qty × isi (pack), item pesanan menyimpan satuan & isi.
 -- cancel_order mengembalikan stok qty × isi. (lihat migrasi "harga_bertingkat_pack_slof_ball")
+
+-- =====================================================================
+-- RESET PASSWORD OLEH ADMIN (password sementara via WA)
+-- =====================================================================
+alter table public.profiles add column if not exists wajib_ganti_pw boolean not null default false;
+-- admin_reset_password(p_member uuid) → text  : hanya admin; buat password acak 8 karakter,
+--   set wajib_ganti_pw = true (member dipaksa buat password baru saat login).
+-- admin_email_member(p_member uuid) → text    : email member untuk dikirim lewat WA (hanya admin).
+-- (lihat migrasi "reset_password_oleh_admin")
