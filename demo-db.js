@@ -161,15 +161,19 @@
       const s = session(); if (!s) throw new Error('Silakan login');
       if (!p_items.length) throw new Error('Keranjang kosong');
       let sub = 0, berat = 0; const items = [];
+      const sat = (p, s) => s === 'slof' ? [p.isi_slof || 10, p.harga_slof] : s === 'ball' ? [p.isi_ball || 100, p.harga_ball] : [1, p.harga];
       for (const it of p_items) {
         const p = DB.products.find(x => x.id === it.id && x.aktif); const q = Math.max(1, +it.qty);
         if (!p) throw new Error('Produk tidak tersedia');
-        if (p.stok < q) throw new Error(`Stok ${p.nama} tidak cukup (sisa ${p.stok})`);
+        const [isi, h] = sat(p, it.satuan);
+        if (!(h > 0)) throw new Error(`${p.nama} tidak dijual per ${String(it.satuan).toUpperCase()}`);
+        if (p.stok < q * isi) throw new Error(`Stok ${p.nama} tidak cukup (sisa ${p.stok} pack)`);
       }
       for (const it of p_items) {
-        const p = DB.products.find(x => x.id === it.id); const q = Math.max(1, +it.qty);
-        p.stok -= q; items.push({ id: p.id, nama: p.nama, harga: p.harga, qty: q, berat: p.berat_gram });
-        sub += p.harga * q; berat += p.berat_gram * q;
+        const p = DB.products.find(x => x.id === it.id); const q = Math.max(1, +it.qty); const s = ['slof','ball'].includes(it.satuan) ? it.satuan : 'pack';
+        const [isi, h] = sat(p, s);
+        p.stok -= q * isi; items.push({ id: p.id, nama: p.nama, satuan: s, isi, harga: h, qty: q, berat: p.berat_gram * isi });
+        sub += h * q; berat += p.berat_gram * isi * q;
       }
       const d = new Date(), kode = 'ORD' + String(d.getFullYear()).slice(2) + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') + String(Math.floor(Math.random() * 10000)).padStart(4, '0');
       const ongkir = +p_kirim.ongkir || 0;
@@ -184,7 +188,7 @@
       const o = DB.orders.find(x => x.id === p_id); if (!o) throw new Error('Pesanan tidak ditemukan');
       if (o.member_id !== session()?.user.id && !isAdmin()) throw new Error('Tidak diizinkan');
       if (!['menunggu', 'dikonfirmasi'].includes(o.status)) throw new Error('Pesanan sudah dikirim');
-      o.items.forEach(i => { const p = DB.products.find(x => x.id === i.id); if (p) p.stok += i.qty; });
+      o.items.forEach(i => { const p = DB.products.find(x => x.id === i.id); if (p) p.stok += i.qty * (i.isi || 1); });
       o.status = 'batal';
     },
     admin_adjust_points({ p_member, p_delta, p_ket }) {

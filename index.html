@@ -46,6 +46,10 @@ h1{font-size:19px;margin:4px 0 12px}h2{font-size:16px;margin:16px 0 8px}
 .prod .b{padding:8px;display:flex;flex-direction:column;gap:6px;flex:1}
 .prod .n{font-size:13px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:35px}
 .prod .p{color:var(--pri);font-size:16px;font-weight:500}.prod .p small{font-size:11px;margin-right:1px}
+.prod .tiers{display:flex;flex-wrap:wrap;gap:4px}.prod .tiers span{font-size:10.5px;border:1px solid var(--pri);color:var(--pri);border-radius:2px;padding:0 4px;line-height:16px}
+.units{display:flex;gap:8px;flex-wrap:wrap}.unit{border:1px solid var(--bd);background:#fff;border-radius:4px;padding:8px 12px;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;min-width:96px;font:inherit;text-align:left}
+.unit b{font-size:13px}.unit span{color:var(--pri);font-weight:600}.unit small{font-size:11px;color:var(--mut)}.unit.on{border-color:var(--pri);background:var(--pri-l);box-shadow:inset 0 0 0 1px var(--pri)}.unit:disabled{opacity:.4;cursor:not-allowed}
+.sat{font-size:10.5px;background:var(--pri-l);color:var(--pri);border:1px solid var(--pri);border-radius:2px;padding:0 4px;font-weight:600;vertical-align:middle}
 .prod .meta{display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:auto}
 .banner{border-radius:var(--r);background:linear-gradient(120deg,#ee4d2d 0%,#ff7337 55%,#ffb03b 100%);color:#fff;padding:20px 22px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;overflow:hidden}
 .banner b{font-size:21px;display:block}.banner span{opacity:.95;font-size:13px}
@@ -287,7 +291,8 @@ function cardProduk(p){
   return `<div class="prod" onclick="detailProduk(${p.id})">
     <div class="img" ${img}>${p.foto_url?'':'📦'}${p.stok<1?'<div class="habis">HABIS</div>':p.stok<=5?`<span class="tag">Sisa ${p.stok}</span>`:''}</div>
     <div class="b"><div class="n">${esc(p.nama)}</div>
-      <div class="p"><small>Rp</small>${Number(p.harga).toLocaleString('id-ID')}</div>
+      <div class="p"><small>Rp</small>${Number(p.harga).toLocaleString('id-ID')}<small style="color:var(--mut);margin-left:2px">/pack</small></div>
+      ${satuanList(p).length>1 ? `<div class="tiers">${satuanList(p).slice(1).map(u=>`<span>${u.label} ${rp(u.harga)}</span>`).join('')}</div>` : ''}
       <div class="meta"><span>${esc(p.kategori||'')}</span><span>Stok ${p.stok}</span></div>
     </div></div>`;
 }
@@ -299,10 +304,11 @@ function detailProduk(id){
   el.innerHTML = `<div class="top"><button onclick="tutupPd()" aria-label="Kembali">‹</button><button onclick="tutupPd();location.hash='#/keranjang'" aria-label="Keranjang">🛒</button></div>
     <div class="wrap">
       <div class="pimg" ${p.foto_url?`style="background-image:url('${esc(p.foto_url)}')"`:''}>${p.foto_url?'':'📦'}</div>
-      <div class="inf"><div class="pr">${rp(p.harga)}</div><div class="nm">${esc(p.nama)}</div>
-        <div class="mut">${p.stok<1?'<b style="color:var(--err)">Stok habis</b>':`Stok tersedia: ${p.stok}`}</div></div>
+      <div class="inf"><div class="pr" id="pdHarga">${rp(p.harga)}<small style="font-size:13px;color:var(--mut)"> /pack</small></div><div class="nm">${esc(p.nama)}</div>
+        <div class="mut">${p.stok<1?'<b style="color:var(--err)">Stok habis</b>':`Stok tersedia: ${p.stok} pack`}</div>
+        ${satuanList(p).length>1 ? `<div style="margin-top:10px"><div class="mut" style="margin-bottom:6px">Pilih satuan:</div><div class="units">${satuanList(p).map((u,k)=>`<button type="button" class="unit ${k===0?'on':''}" ${p.stok<u.isi?'disabled':''} onclick="pilihSatuan(${p.id},'${u.kode}',this)"><b>${u.label}</b><span>${rp(u.harga)}</span>${u.isi>1?`<small>isi ${u.isi} pack${u.hemat>0?` · hemat ${rp(u.hemat)}`:''}</small>`:'<small>satuan</small>'}</button>`).join('')}</div></div>` : ''}</div>
       <div class="kv"><span>Kategori</span><span>${esc(p.kategori)}</span></div>
-      <div class="kv"><span>Berat</span><span>${p.berat_gram} gram</span></div>
+      <div class="kv"><span>Berat</span><span>${p.berat_gram} gram / pack</span></div>
       <div class="kv"><span>Pengiriman</span><span>J&T Express dari ${esc(S.settings.origin_nama||'-')}</span></div>
       ${lokasiToko() ? `<div class="kv"><span>Lokasi toko</span><a href="${lokasiToko()}" target="_blank">📍 Lihat di Google Maps</a></div>` : ''}
       <div class="kv"><span>Poin member</span><span>Kumpulkan poin & tukar hadiah</span></div>
@@ -310,19 +316,39 @@ function detailProduk(id){
       <div class="ds">${esc(p.deskripsi)||'<span class="mut">Tidak ada deskripsi.</span>'}</div>
     </div>
     ${isAdmin() ? '' : `<div class="act"><a class="ch" href="${wa}" target="_blank">💬<span>Chat</span></a>
-      <button class="ad" ${p.stok<1?'disabled':''} onclick="addCart(${p.id})">🛒<span>Masukkan Keranjang</span></button>
-      <button class="by" ${p.stok<1?'disabled':''} onclick="if(addCart(${p.id},true)!==false){tutupPd();location.hash=S.session?'#/checkout':'#/login'}">Beli Sekarang</button></div>`}`;
+      <button class="ad" ${p.stok<1?'disabled':''} onclick="addCart(${p.id},false,PD_SAT)">🛒<span>Masukkan Keranjang</span></button>
+      <button class="by" ${p.stok<1?'disabled':''} onclick="if(addCart(${p.id},true,PD_SAT)!==false){tutupPd();location.hash=S.session?'#/checkout':'#/login'}">Beli Sekarang</button></div>`}`;
+  PD_SAT = 'pack';
   document.body.appendChild(el); document.body.style.overflow = 'hidden';
 }
 function tutupPd(){ $('#pd')?.remove(); document.body.style.overflow = ''; }
 window.addEventListener('hashchange', tutupPd);
-function addCart(id, diam){
+function addCart(id, diam, sat){
   const p = KAT.list.find(x=>x.id===id); if(!p) return false;
-  const c = S.cart.find(x=>x.id===id);
-  if (c) { if (diam) return true; if (c.qty >= p.stok) { toast('Stok tidak cukup', true); return false; } c.qty++; }
-  else S.cart.push({ id:p.id, nama:p.nama, harga:p.harga, berat:p.berat_gram, foto:p.foto_url, qty:1 });
-  saveCart(); if (!diam) toast('✓ Ditambahkan ke keranjang'); return true;
+  const u = satuanList(p).find(x=>x.kode===(sat||'pack')) || satuanList(p)[0];
+  const c = S.cart.find(x=>x.id===id && (x.satuan||'pack')===u.kode);
+  const terpakai = S.cart.filter(x=>x.id===id).reduce((a,x)=>a + x.qty*(x.isi||1), 0);
+  if (c && diam) return true;
+  if (terpakai + u.isi > p.stok) { toast(`Stok tidak cukup (sisa ${p.stok} pack)`, true); return false; }
+  if (c) c.qty++;
+  else S.cart.push({ id:p.id, nama:p.nama, satuan:u.kode, isi:u.isi, harga:u.harga, berat:p.berat_gram*u.isi, foto:p.foto_url, qty:1 });
+  saveCart(); if (!diam) toast(`✓ ${u.label} ditambahkan ke keranjang`); return true;
 }
+/* ----- harga bertingkat PACK / SLOF / BALL ----- */
+function satuanList(p){
+  const L = [{ kode:'pack', label:'PACK', isi:1, harga:p.harga, hemat:0 }];
+  if (p.harga_slof > 0) L.push({ kode:'slof', label:'SLOF', isi:p.isi_slof||10, harga:p.harga_slof, hemat:p.harga*(p.isi_slof||10) - p.harga_slof });
+  if (p.harga_ball > 0) L.push({ kode:'ball', label:'BALL', isi:p.isi_ball||100, harga:p.harga_ball, hemat:p.harga*(p.isi_ball||100) - p.harga_ball });
+  return L;
+}
+let PD_SAT = 'pack';
+function pilihSatuan(id, kode, btn){
+  PD_SAT = kode; const p = KAT.list.find(x=>x.id===id); const u = satuanList(p).find(x=>x.kode===kode);
+  document.querySelectorAll('#pd .unit').forEach(b=>b.classList.toggle('on', b===btn));
+  $('#pdHarga').innerHTML = `${rp(u.harga)}<small style="font-size:13px;color:var(--mut)"> /${u.label.toLowerCase()}${u.isi>1?` (isi ${u.isi} pack)`:''}</small>`;
+}
+const namaItem = i => `${esc(i.nama)}${i.satuan ? ` <span class="sat">${String(i.satuan).toUpperCase()}</span>` : ''}`;
+const namaItemTxt = i => `${i.nama}${i.satuan ? ` (${String(i.satuan).toUpperCase()})` : ''}`;
 
 /* ================= AUTH ================= */
 function viewLogin(){
@@ -373,7 +399,7 @@ function viewKeranjang(){
   const sub = S.cart.reduce((a,b)=>a+b.harga*b.qty,0), berat = S.cart.reduce((a,b)=>a+b.berat*b.qty,0);
   app.innerHTML = `<h1>Keranjang</h1><div class="two"><div class="tw"><table>
     <tr><th>Produk</th><th>Harga</th><th>Qty</th><th>Subtotal</th><th></th></tr>
-    ${S.cart.map((c,i)=>`<tr><td><b>${esc(c.nama)}</b><div class="mut">${c.berat} g</div></td><td>${rp(c.harga)}</td>
+    ${S.cart.map((c,i)=>`<tr><td><b>${namaItem(c)}</b><div class="mut">${c.isi>1?`isi ${c.isi} pack · `:''}${c.berat} g</div></td><td>${rp(c.harga)}</td>
       <td><div class="qty"><button class="btn g sm" onclick="qty(${i},-1)">−</button><span>${c.qty}</span><button class="btn g sm" onclick="qty(${i},1)">+</button></div></td>
       <td>${rp(c.harga*c.qty)}</td><td><button class="btn g sm" onclick="S.cart.splice(${i},1);saveCart();viewKeranjang()">✕</button></td></tr>`).join('')}
     </table></div>
@@ -382,6 +408,7 @@ function viewKeranjang(){
     <a class="btn blk" style="display:block;text-align:center" href="${S.session?'#/checkout':'#/login'}">${S.session?'Checkout':'Masuk untuk checkout'}</a></div></div>`;
 }
 function qty(i, d){ const c = S.cart[i]; c.qty = Math.max(1, c.qty + d); saveCart(); viewKeranjang(); }
+// (stok final dicek ulang di server saat checkout)
 
 /* ================= CHECKOUT + ONGKIR J&T ================= */
 let CO = {};
@@ -402,7 +429,7 @@ async function viewCheckout(){
     <h2>Layanan J&T</h2><div id="svc" class="mut">Pilih kota tujuan dulu.</div>
     </div>
     <div class="card sum" style="align-self:start"><h2 style="margin-top:0">Ringkasan</h2>
-      ${S.cart.map(c=>`<div><span>${esc(c.nama)} × ${c.qty}</span><span>${rp(c.harga*c.qty)}</span></div>`).join('')}
+      ${S.cart.map(c=>`<div><span>${namaItem(c)} × ${c.qty}</span><span>${rp(c.harga*c.qty)}</span></div>`).join('')}
       <div><span>Subtotal</span><b>${rp(sub)}</b></div>
       <div><span>Berat J&T</span><span>${kgJnt(berat)} kg</span></div>
       <div><span>Ongkir J&T</span><span id="ong">-</span></div>
@@ -469,7 +496,7 @@ async function buatPesanan(){
   try {
     const kirim = { nama, hp, alamat, kota: CO.tujuan.kota, kecamatan: CO.tujuan.kecamatan || '', kodepos: $('#kp').value.trim(),
       tujuan_id: String(CO.tujuan.id||''), layanan: CO.svc.layanan, ongkir: CO.svc.ongkir, etd: CO.svc.etd || '', catatan: $('#ct').value.trim() };
-    const kode = ok(await sb.rpc('create_order', { p_items: S.cart.map(c=>({ id:c.id, qty:c.qty })), p_kirim: kirim }));
+    const kode = ok(await sb.rpc('create_order', { p_items: S.cart.map(c=>({ id:c.id, qty:c.qty, satuan:c.satuan||'pack' })), p_kirim: kirim }));
     // simpan alamat ke profil
     await sb.from('profiles').update({ alamat, kota: kirim.kota, kecamatan: kirim.kecamatan, kodepos: kirim.kodepos }).eq('id', S.session.user.id);
     const o = ok(await sb.from('orders').select('*').eq('kode', kode).single());
@@ -485,7 +512,7 @@ async function buatPesanan(){
 }
 function waLink(o, bayar){
   const lines = [`*PESANAN ${o.kode}*`, `${S.settings.nama_toko||''}`, '',
-    ...o.items.map(i=>`• ${i.nama} x${i.qty} = ${rp(i.harga*i.qty)}`), '',
+    ...o.items.map(i=>`• ${namaItemTxt(i)} x${i.qty} = ${rp(i.harga*i.qty)}`), '',
     `Subtotal: ${rp(o.subtotal)}`, `Ongkir J&T ${o.layanan} (${kgJnt(o.berat_gram)} kg): ${rp(o.ongkir)}`, `*Total: ${rp(o.total)}*`, '',
     `Penerima: ${o.penerima_nama} (${o.penerima_hp})`, `Alamat: ${o.penerima_alamat}, ${[o.penerima_kecamatan,o.penerima_kota,o.penerima_kodepos].filter(Boolean).join(', ')}`,
     o.catatan ? `Catatan: ${o.catatan}` : '', bayar ? `\nSaya sudah bayar via QRIS sebesar ${rp(o.total)}. Bukti bayar saya lampirkan.` : ''].filter(x=>x!==null);
@@ -524,7 +551,7 @@ async function viewPesanan(){
   const d = ok(await sb.from('orders').select('*').eq('member_id', S.session.user.id).order('created_at',{ascending:false}));
   PS_LIST = d;
   app.innerHTML = `<h1>Pesanan Saya</h1>${d.length ? `<div class="tw"><table><tr><th>Kode</th><th>Tanggal</th><th>Item</th><th>Total</th><th>Status</th><th>Resi J&T</th><th></th></tr>
-    ${d.map(o=>`<tr><td><b>${esc(o.kode)}</b></td><td>${tgl(o.created_at)}</td><td>${o.items.map(i=>`${esc(i.nama)} ×${i.qty}`).join('<br>')}</td>
+    ${d.map(o=>`<tr><td><b>${esc(o.kode)}</b></td><td>${tgl(o.created_at)}</td><td>${o.items.map(i=>`${namaItem(i)} ×${i.qty}`).join('<br>')}</td>
       <td>${rp(o.total)}</td><td><span class="st ${o.status}">${o.status}</span></td><td>${o.resi?`<b>${esc(o.resi)}</b><br><button class="btn o sm" style="margin-top:4px" onclick="lacakResi('${esc(o.resi)}')">📦 Lacak</button>`:(o.status==='dikonfirmasi'?'<span class="mut">Sedang dikemas</span>':'-')}</td>
       <td style="white-space:nowrap">${o.status==='menunggu'?`<button class="btn sm" onclick="bayarQris(PS_LIST.find(x=>x.id===${o.id}))">Bayar</button> `:''}<a class="btn wa sm" href="${waLink(o, o.status==='menunggu')}" target="_blank">WA</a> ${o.status==='menunggu'?`<button class="btn g sm" onclick="batalOrder(${o.id})">Batal</button>`:''}</td></tr>`).join('')}
     </table></div>` : '<div class="empty">Belum ada pesanan.</div>'}`;
@@ -642,7 +669,7 @@ function drawAdminPesanan(){
     ${f.map(o=>`<tr><td><input type="checkbox" ${AP.sel.has(o.id)?'checked':''} onchange="this.checked?AP.sel.add(${o.id}):AP.sel.delete(${o.id})"></td>
       <td><b>${esc(o.kode)}</b><div class="mut">${tgl(o.created_at)}</div>${o.dicetak_at?'<div class="mut">🖨️ sudah dicetak</div>':''}</td>
       <td><b>${esc(o.penerima_nama)}</b> · ${esc(o.penerima_hp)}<div class="mut">${esc(o.penerima_alamat)}, ${esc([o.penerima_kecamatan,o.penerima_kota,o.penerima_kodepos].filter(Boolean).join(', '))}</div><div class="mut">Member: ${esc(o.profiles?.nama||'-')}</div></td>
-      <td>${o.items.map(i=>`${esc(i.nama)} ×${i.qty}`).join('<br>')}<div class="mut">${kgJnt(o.berat_gram)} kg</div></td>
+      <td>${o.items.map(i=>`${namaItem(i)} ×${i.qty}`).join('<br>')}<div class="mut">${kgJnt(o.berat_gram)} kg</div></td>
       <td>${esc(o.layanan)}<br>${rp(o.ongkir)}</td><td><b>${rp(o.total)}</b></td>
       <td><span class="st ${o.status}">${o.status}</span>${o.resi?`<div class="mut">Resi: ${esc(o.resi)} · <a href="#" onclick="lacakResi('${esc(o.resi)}');return false">lacak</a></div>`:''}</td>
       <td style="white-space:nowrap">${aksiOrder(o)}</td></tr>`).join('')}</table></div>`:'<div class="empty">Tidak ada pesanan.</div>'}`;
@@ -710,7 +737,7 @@ async function cetakLabel(ids){
       <div>${esc(o.penerima_alamat)}</div><div class="kt">${esc([o.penerima_kecamatan,o.penerima_kota].filter(Boolean).join(', ').toUpperCase())} ${esc(o.penerima_kodepos)}</div></div>
     <div class="sec"><div class="t">PENGIRIM</div><div class="nm2">${esc(st.nama_toko)}</div><div>${esc(st.hp_toko)}</div><div>${esc(st.alamat_toko)}</div></div>
     <div class="grid3"><div><span>Berat</span><b>${kgJnt(o.berat_gram)} kg</b></div><div><span>Ongkir</span><b>${rp(o.ongkir)}</b></div><div><span>Qty</span><b>${o.items.reduce((a,b)=>a+b.qty,0)} pcs</b></div></div>
-    <div class="sec isi"><div class="t">ISI PAKET</div>${o.items.map(i=>`${esc(i.nama)} ×${i.qty}`).join(', ')}${o.catatan?`<div><i>Catatan: ${esc(o.catatan)}</i></div>`:''}</div>
+    <div class="sec isi"><div class="t">ISI PAKET</div>${o.items.map(i=>`${esc(namaItemTxt(i))} ×${i.qty}`).join(', ')}${o.catatan?`<div><i>Catatan: ${esc(o.catatan)}</i></div>`:''}</div>
     <div class="ft"><div class="bc2">${barcode(o.kode,30)}</div><div class="bt">${esc(o.kode)} · ${new Date(o.created_at).toLocaleDateString('id-ID')}</div></div>
   </div>`;
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Label</title><style>
@@ -776,7 +803,7 @@ async function viewAdminProduk(){
     <div class="tw"><table id="tb"></table></div>`;
   const draw = (q='') => $('#tb').innerHTML = `<tr><th>Foto</th><th>Nama</th><th>Kategori</th><th>Harga</th><th>Berat</th><th>Stok</th><th>Aktif</th><th></th></tr>` +
     APR.filter(p=>p.nama.toLowerCase().includes(q.toLowerCase())).map(p=>`<tr><td>${p.foto_url?`<img src="${esc(p.foto_url)}" style="width:44px;height:44px;object-fit:cover;border-radius:6px">`:'📦'}</td>
-    <td><b>${esc(p.nama)}</b></td><td>${esc(p.kategori)}</td><td>${rp(p.harga)}</td><td>${p.berat_gram} g</td><td style="${p.stok<=5?'color:var(--err);font-weight:700':''}">${p.stok}</td><td>${p.aktif?'✅':'—'}</td>
+    <td><b>${esc(p.nama)}</b></td><td>${esc(p.kategori)}</td><td style="white-space:nowrap">${satuanList(p).map(u=>`<div><span class="mut">${u.label}</span> ${rp(u.harga)}</div>`).join('')}</td><td>${p.berat_gram} g</td><td style="${p.stok<=5?'color:var(--err);font-weight:700':''}">${p.stok} pack${p.stok>=p.isi_slof?`<div class="mut">≈ ${Math.floor(p.stok/(p.isi_slof||10))} slof</div>`:''}</td><td>${p.aktif?'✅':'—'}</td>
     <td><button class="btn g sm" onclick="formProduk(${p.id})">Edit</button></td></tr>`).join('');
   draw(); $('#q').oninput = e => draw(e.target.value);
 }
@@ -784,9 +811,15 @@ function formProduk(id){
   const p = APR.find(x=>x.id===id) || { nama:'', kategori:'Umum', deskripsi:'', harga:0, berat_gram:100, stok:0, foto_url:'', aktif:true };
   modal(`<h2 style="margin-top:0">${id?'Edit':'Tambah'} produk</h2><form id="fp">
     <label>Nama</label><input name="nama" value="${esc(p.nama)}" required>
-    <div class="row"><div><label>Kategori</label><input name="kategori" value="${esc(p.kategori)}" list="kl"></div><div><label>Harga (Rp)</label><input name="harga" type="number" min="0" value="${p.harga}" required></div></div>
+    <div class="row"><div><label>Kategori</label><input name="kategori" value="${esc(p.kategori)}" list="kl"></div></div>
+    <div class="card" style="box-shadow:none;border:1px solid var(--bd);margin-top:10px;padding:10px 12px">
+      <b style="font-size:13px">Harga bertingkat</b> <span class="mut">— kosongkan SLOF/BALL jika tidak dijual per satuan itu</span>
+      <div class="row"><div><label>Harga per PACK (Rp)</label><input name="harga" type="number" min="0" value="${p.harga}" required></div><div></div></div>
+      <div class="row"><div><label>Harga per SLOF (Rp)</label><input name="harga_slof" type="number" min="0" value="${p.harga_slof??''}" placeholder="tidak dijual"></div><div><label>Isi 1 SLOF (pack)</label><input name="isi_slof" type="number" min="1" value="${p.isi_slof||10}"></div></div>
+      <div class="row"><div><label>Harga per BALL (Rp)</label><input name="harga_ball" type="number" min="0" value="${p.harga_ball??''}" placeholder="tidak dijual"></div><div><label>Isi 1 BALL (pack)</label><input name="isi_ball" type="number" min="1" value="${p.isi_ball||100}"></div></div>
+    </div>
     <datalist id="kl">${[...new Set(APR.map(x=>x.kategori))].map(k=>`<option value="${esc(k)}">`).join('')}</datalist>
-    <div class="row"><div><label>Berat (gram)</label><input name="berat_gram" type="number" min="1" value="${p.berat_gram}" required></div><div><label>Stok</label><input name="stok" type="number" value="${p.stok}" required></div></div>
+    <div class="row"><div><label>Berat per PACK (gram)</label><input name="berat_gram" type="number" min="1" value="${p.berat_gram}" required></div><div><label>Stok (dalam PACK)</label><input name="stok" type="number" value="${p.stok}" required></div></div>
     <label>Deskripsi</label><textarea name="deskripsi" rows="3">${esc(p.deskripsi)}</textarea>
     <label>Foto</label><input type="file" id="ff" accept="image/*">${p.foto_url?`<img src="${esc(p.foto_url)}" style="height:70px;margin-top:6px;border-radius:6px">`:''}
     <label class="row" style="flex:none;gap:6px"><input type="checkbox" name="aktif" ${p.aktif?'checked':''} style="width:auto;flex:none"> Tampil di katalog</label>
@@ -795,7 +828,7 @@ function formProduk(id){
     e.preventDefault(); const b = e.target.querySelector('button'); b.disabled = true;
     try {
       const fd = Object.fromEntries(new FormData(e.target));
-      const row = { nama:fd.nama, kategori:fd.kategori||'Umum', deskripsi:fd.deskripsi, harga:+fd.harga, berat_gram:+fd.berat_gram, stok:+fd.stok, aktif:!!fd.aktif, foto_url:p.foto_url };
+      const row = { nama:fd.nama, kategori:fd.kategori||'Umum', deskripsi:fd.deskripsi, harga:+fd.harga, harga_slof: fd.harga_slof===''?null:+fd.harga_slof, harga_ball: fd.harga_ball===''?null:+fd.harga_ball, isi_slof:+fd.isi_slof||10, isi_ball:+fd.isi_ball||100, berat_gram:+fd.berat_gram, stok:+fd.stok, aktif:!!fd.aktif, foto_url:p.foto_url };
       const f = $('#ff').files[0]; if (f) row.foto_url = await uploadFoto(f, 'produk');
       ok(id ? await sb.from('products').update(row).eq('id',id) : await sb.from('products').insert(row));
       closeModal(); toast('Tersimpan'); route();

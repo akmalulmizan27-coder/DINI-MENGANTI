@@ -364,3 +364,15 @@ create index if not exists idx_red_reward on public.redemptions(reward_id);
 create index if not exists idx_products_aktif_nama on public.products(aktif, nama);
 -- Policy RLS memakai (select auth.uid()) / (select public.is_admin()) agar dihitung sekali per query,
 -- dan policy admin dipisah per aksi (insert/update/delete) — lihat migrasi "perf_dan_fix_kode_order".
+
+-- =====================================================================
+-- HARGA BERTINGKAT PACK / SLOF / BALL  (stok dihitung dalam PACK)
+-- =====================================================================
+alter table public.products
+  add column if not exists harga_slof integer check (harga_slof is null or harga_slof >= 0),
+  add column if not exists harga_ball integer check (harga_ball is null or harga_ball >= 0),
+  add column if not exists isi_slof integer not null default 10 check (isi_slof > 0),
+  add column if not exists isi_ball integer not null default 100 check (isi_ball > 0);
+-- create_order menerima item {id, qty, satuan:'pack'|'slof'|'ball'}: harga sesuai satuan,
+-- stok dipotong qty × isi (pack), item pesanan menyimpan satuan & isi.
+-- cancel_order mengembalikan stok qty × isi. (lihat migrasi "harga_bertingkat_pack_slof_ball")
