@@ -2,8 +2,16 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Katalog Toko & Member Poin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Warung Sembako Dini</title>
+<meta name="description" content="Belanja sembako & kebutuhan harian, kumpulkan poin member dan tukar dengan hadiah.">
+<meta name="theme-color" content="#ee4d2d">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Warung Dini">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="demo-db.js"></script>
 <style>
@@ -1128,6 +1136,21 @@ async function viewAdminPengaturan(){
 }
 
 init();
+
+/* ================= PWA: service worker + tombol install ================= */
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(()=>{}));
+let PROMPT_INSTALL = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); PROMPT_INSTALL = e;
+  if (localStorage.getItem('tolakInstall') || matchMedia('(display-mode: standalone)').matches) return;
+  const b = document.createElement('div'); b.id = 'instBar';
+  b.style.cssText = 'position:fixed;left:10px;right:10px;bottom:calc(66px + env(safe-area-inset-bottom));z-index:40;background:#fff;border-radius:10px;box-shadow:0 4px 18px #0003;padding:10px 12px;display:flex;gap:10px;align-items:center;max-width:520px;margin:auto';
+  b.innerHTML = `<img src="/icons/icon-192.png" style="width:40px;height:40px;border-radius:8px"><div style="flex:1;font-size:13px"><b>Install aplikasi ${esc(S.settings.nama_toko||'toko')}</b><div class="mut">Belanja lebih cepat dari layar utama HP</div></div><button class="btn sm" id="instYa">Install</button><button class="btn g sm" id="instNo">✕</button>`;
+  document.body.appendChild(b);
+  $('#instYa').onclick = async () => { b.remove(); PROMPT_INSTALL.prompt(); await PROMPT_INSTALL.userChoice; PROMPT_INSTALL = null; };
+  $('#instNo').onclick = () => { b.remove(); localStorage.setItem('tolakInstall','1'); };
+});
+window.addEventListener('appinstalled', () => { $('#instBar')?.remove(); toast('✓ Aplikasi terpasang di layar utama'); });
 </script>
 </body>
 </html>
