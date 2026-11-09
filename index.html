@@ -67,6 +67,9 @@ h1{font-size:19px;margin:4px 0 12px}h2{font-size:16px;margin:16px 0 8px}
 .banner .pt small{display:block;font-weight:400;color:var(--mut);font-size:11px}
 .banner .lg{width:96px;height:96px;border-radius:12px;background:#fff center/cover no-repeat;flex:none;border:3px solid #fff;box-shadow:0 2px 8px #0003}
 .banner .tx{flex:1;min-width:0}
+@font-face{font-family:'PoppinsB';src:url('/fonts/poppins-bold.woff') format('woff');font-weight:700;font-display:swap}
+.banner .tx .nm1{display:block;font:700 13px/1.15 PoppinsB,system-ui,sans-serif;letter-spacing:2px;opacity:.95;text-shadow:0 1px 2px #0005}
+.banner .tx .nm2{display:block;font:700 40px/1 PoppinsB,system-ui,sans-serif;letter-spacing:1px;text-shadow:0 2px 4px #0006;margin:2px 0 4px;overflow-wrap:anywhere}
 .banner .dm{display:flex;flex-direction:column;align-items:center;gap:3px;flex:none;padding:10px 14px 8px;border-radius:14px;
   background:linear-gradient(145deg,#ffffff4d 0%,#ee4d2d59 45%,#c2441f73 100%);-webkit-backdrop-filter:blur(10px) saturate(140%);backdrop-filter:blur(10px) saturate(140%);
   border:1px solid #ffffff8c;box-shadow:inset 0 1px 0 #ffffffb3,inset 0 -1px 0 #ffffff26,0 6px 18px #0000004d,0 2px 4px #00000033;transition:transform .15s,box-shadow .15s}
@@ -168,6 +171,7 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:24px 10px 40px}
 @keyframes pfade{from{opacity:0}}@keyframes pzoom{from{transform:scale(.85);opacity:0}}
 @media(max-width:800px){
   .banner .lg{width:70px;height:70px}
+  .banner .tx .nm1{font-size:10.5px;letter-spacing:1.5px}.banner .tx .nm2{font-size:30px}
   .banner .dm{padding:7px 9px 6px;border-radius:11px}.banner .dm img{height:36px}.banner .dm small{font-size:9px}
   .banner.bg{min-height:130px;padding:14px 16px;background:linear-gradient(90deg,#ee4d2df5 0%,#ee4d2de6 45%,#ff733780 75%,#ff733726 100%),var(--bimg) right 30% center/cover no-repeat}.banner.bg b{font-size:16px}.banner.bg span{font-size:12px;max-width:none}.banner.bg .pt{padding:6px 9px;font-size:13px}
   .two{grid-template-columns:1fr}
@@ -309,13 +313,19 @@ async function viewKatalog(){
   KAT.ads = (ik.data||[]).filter(p => (!p.mulai || p.mulai <= t) && (!p.selesai || p.selesai >= t));
   drawKatalog();
 }
+// nama toko di banner: kata terakhir besar (brand), sisanya kecil di atas — mis. "WARUNG SEMBAKO" + "DINI"
+function judulToko(){
+  const w = String(S.settings.nama_toko||'Toko').trim().split(/\s+/);
+  const atas = w.length > 1 ? w.slice(0,-1).join(' ') : '';
+  return `${atas?`<span class="nm1">${esc(atas)}</span>`:''}<span class="nm2">${esc(w[w.length-1])}</span>`;
+}
 function drawKatalog(){
   const kats = ['Semua', ...new Set(KAT.list.map(p=>p.kategori||'Umum'))];
   const f = KAT.list.filter(p => (KAT.kat==='Semua'||p.kategori===KAT.kat) && p.nama.toLowerCase().includes(KAT.q.toLowerCase()));
   if ($('#hq').value !== KAT.q) $('#hq').value = KAT.q;
   const poin = S.profile && !isAdmin() ? `<div class="pt">${(S.profile.poin||0).toLocaleString('id-ID')}<small>poin saya</small></div>` : (!S.session ? `<a class="dm" href="#/daftar" title="Daftar member gratis"><img src="daftar-member.png" alt="Daftar Member"><small>gratis · kumpulkan poin</small></a>` : '');
   app.innerHTML = `
-    ${KAT.q ? '' : `<div class="banner bg" style="--bimg:url('${esc(S.settings.banner_url||'banner-bg.jpg')}');padding-left:14px"><div class="lg" style="background-image:url('${esc(S.settings.logo_url||'logo.jpg')}')"></div><div class="tx"><b>${esc(S.settings.nama_toko||'Toko')}</b><span>${esc(S.settings.slogan||'Lengkap, murah, ramah.')}</span></div>${poin}</div>`}
+    ${KAT.q ? '' : `<div class="banner bg" style="--bimg:url('${esc(S.settings.banner_url||'banner-bg.jpg')}');padding-left:14px"><div class="lg" style="background-image:url('${esc(S.settings.logo_url||'logo.jpg')}')"></div><div class="tx">${judulToko()}<span>${esc(S.settings.slogan||'Lengkap, murah, ramah.')}</span></div>${poin}</div>`}
     <div class="cats">${kats.map(k=>`<span class="chip ${k===KAT.kat?'on':''}" onclick="KAT.kat='${esc(k).replace(/'/g,"\\'")}';drawKatalog()">${esc(k)}</span>`).join('')}</div>
     ${KAT.q ? '' : barisHtml()}
     <div class="sect">${KAT.q ? `Hasil pencarian "${esc(KAT.q)}" <a href="#" style="float:right;font-size:12px;text-transform:none" onclick="KAT.q='';drawKatalog();return false">hapus ✕</a>` : 'Rekomendasi'}</div>
