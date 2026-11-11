@@ -392,3 +392,16 @@ alter table public.profiles add column if not exists wajib_ganti_pw boolean not 
 alter table public.orders add column if not exists metode_bayar text not null default 'qris' check (metode_bayar in ('qris','transfer'));
 insert into public.settings(key,value) values ('bank_nama',''),('bank_norek',''),('bank_atas_nama','') on conflict (key) do nothing;
 -- create_order membaca p_kirim->>'metode_bayar' ('transfer' / selain itu 'qris'). (migrasi "metode_bayar_qris_transfer")
+
+-- =====================================================================
+-- DP (UANG MUKA) 10–50% + STATUS BAYAR
+-- =====================================================================
+alter table public.orders
+  add column if not exists dp_persen integer not null default 0 check (dp_persen in (0,10,20,30,40,50)),
+  add column if not exists dp_nominal integer not null default 0 check (dp_nominal >= 0),
+  add column if not exists status_bayar text not null default 'belum' check (status_bayar in ('belum','dp','lunas'));
+alter table public.orders drop constraint if exists orders_selesai_wajib_lunas;
+alter table public.orders add constraint orders_selesai_wajib_lunas check (status <> 'selesai' or status_bayar = 'lunas');
+-- create_order: p_kirim->>'dp_persen' (0/10/20/30/40/50); dp_nominal = total × % dibulatkan ke atas per Rp100.
+-- Alur: Konfirmasi admin → status_bayar 'dp' (atau 'lunas' bila tanpa DP); resi terbit → pembeli wajib pelunasan;
+-- admin "Pelunasan diterima" → 'lunas'. Pesanan tidak bisa 'selesai' sebelum lunas. (migrasi "dp_dan_status_bayar")
