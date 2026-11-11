@@ -405,3 +405,11 @@ alter table public.orders add constraint orders_selesai_wajib_lunas check (statu
 -- create_order: p_kirim->>'dp_persen' (0/10/20/30/40/50); dp_nominal = total × % dibulatkan ke atas per Rp100.
 -- Alur: Konfirmasi admin → status_bayar 'dp' (atau 'lunas' bila tanpa DP); resi terbit → pembeli wajib pelunasan;
 -- admin "Pelunasan diterima" → 'lunas'. Pesanan tidak bisa 'selesai' sebelum lunas. (migrasi "dp_dan_status_bayar")
+
+-- =====================================================================
+-- AKSES DP PER MEMBER (diberikan admin di menu Member & Poin)
+-- =====================================================================
+alter table public.profiles add column if not exists boleh_dp boolean not null default false;
+-- protect_profile: member tidak bisa mengubah role / poin / boleh_dp miliknya sendiri.
+-- trigger trg_cek_akses_dp (before insert on orders): tolak dp_persen > 0 bila boleh_dp = false.
+-- (migrasi "akses_dp_per_member")

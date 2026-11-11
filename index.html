@@ -499,6 +499,7 @@ function qty(i, d){ const c = S.cart[i]; c.qty = Math.max(1, c.qty + d); saveCar
 let CO = {};
 async function viewCheckout(){
   if (!S.cart.length) { location.hash = '#/keranjang'; return; }
+  await loadProfile(); // ambil akses DP terbaru dari admin
   const tarif = ok(await sb.from('tarif_manual').select('*').order('kota'));
   const p = S.profile || {};
   const berat = S.cart.reduce((a,b)=>a+b.berat*b.qty,0), sub = S.cart.reduce((a,b)=>a+b.harga*b.qty,0);
@@ -522,11 +523,11 @@ async function viewCheckout(){
       <h2>Metode pembayaran</h2>
       <label class="svc"><input type="radio" name="mb" value="qris" checked onchange="pilihMetode()"><div style="flex:1"><b>QRIS</b><div class="mut">Scan pakai m-banking / GoPay / OVO / DANA / ShopeePay</div></div></label>
       ${bankAktif() ? `<label class="svc"><input type="radio" name="mb" value="transfer" onchange="pilihMetode()"><div style="flex:1"><b>Transfer Bank</b><div class="mut">${esc(S.settings.bank_nama)} · ${esc(S.settings.bank_norek)}</div></div></label>` : ''}
-      <label class="svc" style="margin-top:10px"><input type="checkbox" id="dpOn" onchange="ubahDp()"><div style="flex:1"><b>Bayar DP dulu</b><div class="mut">Bayar sebagian sekarang, sisanya wajib dilunasi setelah paket dikemas & resi J&T terbit</div></div></label>
+      ${S.profile?.boleh_dp ? `<label class="svc" style="margin-top:10px"><input type="checkbox" id="dpOn" onchange="ubahDp()"><div style="flex:1"><b>Bayar DP dulu</b><div class="mut">Bayar sebagian sekarang, sisanya wajib dilunasi setelah paket dikemas & resi J&T terbit</div></div></label>
       <div id="dpBox" style="display:none;margin-top:6px">
         <select id="dpPct" onchange="ubahDp()">${[10,20,30,40,50].map(x=>`<option value="${x}" ${x===30?'selected':''}>DP ${x}%</option>`).join('')}</select>
         <div class="sum" style="margin-top:6px"><div><span>Bayar sekarang (DP)</span><b id="dpNow" style="color:var(--pri)">-</b></div><div><span>Pelunasan nanti</span><span id="dpSisa">-</span></div></div>
-      </div>
+      </div>` : ''}
       <button class="btn blk" id="buat" style="margin-top:12px" onclick="buatPesanan()">Buat Pesanan & Bayar (QRIS)</button>
       <p class="mut" id="mbInfo">Setelah pesanan dibuat, QRIS pembayaran akan muncul. Bayar sesuai total, lalu kirim bukti bayar ke WhatsApp toko.</p>
     </div></div>`;
@@ -1010,12 +1011,23 @@ let AM = [];
 async function viewAdminMember(){
   AM = ok(await sb.from('profiles').select('*').order('created_at',{ascending:false}));
   app.innerHTML = `<h1>Member & Poin</h1><div class="toolbar"><input id="q" placeholder="Cari nama / HP"></div><div class="tw"><table id="tb"></table></div>`;
-  const draw = (q='') => $('#tb').innerHTML = `<tr><th>Nama</th><th>No. HP</th><th>Alamat</th><th>Role</th><th>Poin</th><th>Daftar</th><th></th></tr>` +
+  const draw = (q='') => $('#tb').innerHTML = `<tr><th>Nama</th><th>No. HP</th><th>Alamat</th><th>Role</th><th>Poin</th><th>Akses DP</th><th>Daftar</th><th></th></tr>` +
     AM.filter(m=>(m.nama+m.no_hp).toLowerCase().includes(q.toLowerCase())).map(m=>`<tr><td><b>${esc(m.nama||'(tanpa nama)')}</b></td><td>${esc(m.no_hp)}</td>
     <td class="mut">${esc([m.alamat,m.kota].filter(Boolean).join(', '))}</td><td>${m.role==='admin'?'<span class="st dikonfirmasi">admin</span>':'member'}</td>
-    <td><b style="font-size:16px">${m.poin.toLocaleString('id-ID')}</b></td><td class="mut">${tgl(m.created_at)}</td>
+    <td><b style="font-size:16px">${m.poin.toLocaleString('id-ID')}</b></td>
+    <td>${m.role==='admin' ? '-' : `<label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;font-weight:500;white-space:nowrap"><input type="checkbox" style="width:18px;height:18px" ${m.boleh_dp?'checked':''} onchange="aturDp('${m.id}',this)"> ${m.boleh_dp?'Boleh DP':'Tidak'}</label>`}</td>
+    <td class="mut">${tgl(m.created_at)}</td>
     <td style="white-space:nowrap"><button class="btn sm" onclick="poinModal('${m.id}','${esc(m.nama).replace(/'/g,'')}')">± Poin</button> <button class="btn g sm" onclick="riwayatPoin('${m.id}','${esc(m.nama).replace(/'/g,'')}')">Riwayat</button>${m.role!=='admin'?` <button class="btn g sm" onclick="resetPwMember('${m.id}')">🔑 Reset PW</button>`:''}</td></tr>`).join('');
   draw(); $('#q').oninput = e => draw(e.target.value);
+}
+async function aturDp(id, el){
+  const v = el.checked; el.disabled = true;
+  try { ok(await sb.from('profiles').update({ boleh_dp: v }).eq('id', id));
+    const m = AM.find(x=>x.id===id); if (m) m.boleh_dp = v;
+    el.parentElement.lastChild.textContent = v ? ' Boleh DP' : ' Tidak';
+    toast(v ? `✓ ${m?.nama||'Member'} sekarang bisa bayar DP` : `DP dinonaktifkan untuk ${m?.nama||'member'}`);
+  } catch(e){ el.checked = !v; fail(e); }
+  el.disabled = false;
 }
 async function resetPwMember(id){
   const m = AM.find(x=>x.id===id); if (!m) return;
