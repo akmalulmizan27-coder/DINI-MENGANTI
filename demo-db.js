@@ -179,7 +179,7 @@
       const ongkir = +p_kirim.ongkir || 0;
       const o = { id: DB.seq.orders++, kode, member_id: s.user.id, items, subtotal: sub, berat_gram: berat, kurir: 'J&T', layanan: p_kirim.layanan || 'EZ', ongkir, etd: p_kirim.etd || '', total: sub + ongkir,
         penerima_nama: p_kirim.nama, penerima_hp: p_kirim.hp, penerima_alamat: p_kirim.alamat, penerima_kota: p_kirim.kota || '', penerima_kecamatan: p_kirim.kecamatan || '', penerima_kodepos: p_kirim.kodepos || '',
-        tujuan_id: p_kirim.tujuan_id || '', catatan: p_kirim.catatan || '', status: 'menunggu', resi: '', dicetak_at: null, created_at: now() };
+        tujuan_id: p_kirim.tujuan_id || '', catatan: p_kirim.catatan || '', metode_bayar: p_kirim.metode_bayar === 'transfer' ? 'transfer' : 'qris', status: 'menunggu', resi: '', dicetak_at: null, created_at: now() };
       DB.orders.push(o);
       setTimeout(() => localStorage.setItem(EKEY, JSON.stringify({ t: Date.now(), order: o })), 0);
       return kode;

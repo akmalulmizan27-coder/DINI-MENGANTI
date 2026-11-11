@@ -385,3 +385,10 @@ alter table public.profiles add column if not exists wajib_ganti_pw boolean not 
 --   set wajib_ganti_pw = true (member dipaksa buat password baru saat login).
 -- admin_email_member(p_member uuid) → text    : email member untuk dikirim lewat WA (hanya admin).
 -- (lihat migrasi "reset_password_oleh_admin")
+
+-- =====================================================================
+-- METODE BAYAR: QRIS atau TRANSFER BANK
+-- =====================================================================
+alter table public.orders add column if not exists metode_bayar text not null default 'qris' check (metode_bayar in ('qris','transfer'));
+insert into public.settings(key,value) values ('bank_nama',''),('bank_norek',''),('bank_atas_nama','') on conflict (key) do nothing;
+-- create_order membaca p_kirim->>'metode_bayar' ('transfer' / selain itu 'qris'). (migrasi "metode_bayar_qris_transfer")

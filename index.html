@@ -519,8 +519,11 @@ async function viewCheckout(){
       <div><span>Berat J&T</span><span>${kgJnt(berat)} kg</span></div>
       <div><span>Ongkir J&T</span><span id="ong">-</span></div>
       <div class="tot"><span>Total</span><span id="tot">${rp(sub)}</span></div>
+      <h2>Metode pembayaran</h2>
+      <label class="svc"><input type="radio" name="mb" value="qris" checked onchange="pilihMetode()"><div style="flex:1"><b>QRIS</b><div class="mut">Scan pakai m-banking / GoPay / OVO / DANA / ShopeePay</div></div></label>
+      ${bankAktif() ? `<label class="svc"><input type="radio" name="mb" value="transfer" onchange="pilihMetode()"><div style="flex:1"><b>Transfer Bank</b><div class="mut">${esc(S.settings.bank_nama)} · ${esc(S.settings.bank_norek)}</div></div></label>` : ''}
       <button class="btn blk" id="buat" style="margin-top:12px" onclick="buatPesanan()">Buat Pesanan & Bayar (QRIS)</button>
-      <p class="mut">Setelah pesanan dibuat, QRIS pembayaran akan muncul. Bayar sesuai total, lalu kirim bukti bayar ke WhatsApp toko.</p>
+      <p class="mut" id="mbInfo">Setelah pesanan dibuat, QRIS pembayaran akan muncul. Bayar sesuai total, lalu kirim bukti bayar ke WhatsApp toko.</p>
     </div></div>`;
   // cek apakah API ongkir aktif
   const t = await cekOngkirApi();
@@ -580,7 +583,7 @@ async function buatPesanan(){
   const b = $('#buat'); b.disabled = true;
   try {
     const kirim = { nama, hp, alamat, kota: CO.tujuan.kota, kecamatan: CO.tujuan.kecamatan || '', kodepos: $('#kp').value.trim(),
-      tujuan_id: String(CO.tujuan.id||''), layanan: CO.svc.layanan, ongkir: CO.svc.ongkir, etd: CO.svc.etd || '', catatan: $('#ct').value.trim() };
+      tujuan_id: String(CO.tujuan.id||''), layanan: CO.svc.layanan, ongkir: CO.svc.ongkir, etd: CO.svc.etd || '', catatan: $('#ct').value.trim(), metode_bayar: metodeDipilih() };
     const kode = ok(await sb.rpc('create_order', { p_items: S.cart.map(c=>({ id:c.id, qty:c.qty, satuan:c.satuan||'pack' })), p_kirim: kirim }));
     // simpan alamat ke profil
     await sb.from('profiles').update({ alamat, kota: kirim.kota, kecamatan: kirim.kecamatan, kodepos: kirim.kodepos }).eq('id', S.session.user.id);
@@ -589,10 +592,10 @@ async function buatPesanan(){
     ORD_TERAKHIR = o;
     app.innerHTML = `<div class="auth card" style="text-align:center"><div style="font-size:48px">✅</div><h1>Pesanan dibuat</h1>
       <p>Kode pesanan <b>${esc(kode)}</b><br>Total bayar <b style="color:var(--pri);font-size:18px">${rp(o.total)}</b></p>
-      <button class="btn blk" onclick="bayarQris(ORD_TERAKHIR)">Bayar Sekarang (QRIS)</button>
+      <button class="btn blk" onclick="bukaBayar(ORD_TERAKHIR)">Bayar Sekarang (${o.metode_bayar==='transfer'?'Transfer Bank':'QRIS'})</button>
       <a class="btn wa blk" style="display:block;margin-top:8px" href="${waLink(o, true)}" target="_blank">Kirim Pesanan & Bukti Bayar ke WhatsApp</a>
       <p><a href="#/pesanan">Lihat pesanan saya</a></p></div>`;
-    bayarQris(o);
+    bukaBayar(o);
   } catch(e){ fail(e); b.disabled = false; }
 }
 function waLink(o, bayar){
@@ -600,7 +603,7 @@ function waLink(o, bayar){
     ...o.items.map(i=>`• ${namaItemTxt(i)} x${i.qty} = ${rp(i.harga*i.qty)}`), '',
     `Subtotal: ${rp(o.subtotal)}`, `Ongkir J&T ${o.layanan} (${kgJnt(o.berat_gram)} kg): ${rp(o.ongkir)}`, `*Total: ${rp(o.total)}*`, '',
     `Penerima: ${o.penerima_nama} (${o.penerima_hp})`, `Alamat: ${o.penerima_alamat}, ${[o.penerima_kecamatan,o.penerima_kota,o.penerima_kodepos].filter(Boolean).join(', ')}`,
-    o.catatan ? `Catatan: ${o.catatan}` : '', bayar ? `\nSaya sudah bayar via QRIS sebesar ${rp(o.total)}. Bukti bayar saya lampirkan.` : ''].filter(x=>x!==null);
+    o.catatan ? `Catatan: ${o.catatan}` : '', bayar ? `\nSaya sudah bayar via ${o.metode_bayar==='transfer'?`transfer ${S.settings.bank_nama||'bank'}`:'QRIS'} sebesar ${rp(o.total)}. Bukti bayar saya lampirkan.` : ''].filter(x=>x!==null);
   const no = String(S.settings.wa_toko||'').replace(/\D/g,'').replace(/^0/,'62');
   return `https://wa.me/${no}?text=${encodeURIComponent(lines.join('\n'))}`;
 }
@@ -631,6 +634,40 @@ async function downloadQris(){
   } catch { window.open(qrisUrl(), '_blank'); }
 }
 
+/* ================= PEMBAYARAN TRANSFER BANK ================= */
+const bankAktif = () => !!(String(S.settings.bank_nama||'').trim() && String(S.settings.bank_norek||'').trim());
+const metodeDipilih = () => document.querySelector('input[name=mb]:checked')?.value || 'qris';
+function pilihMetode(){
+  const tf = metodeDipilih() === 'transfer';
+  $('#buat').textContent = `Buat Pesanan & Bayar (${tf ? 'Transfer Bank' : 'QRIS'})`;
+  $('#mbInfo').textContent = tf ? 'Setelah pesanan dibuat, nomor rekening toko akan muncul. Transfer sesuai total, lalu kirim bukti transfer ke WhatsApp toko.'
+                                : 'Setelah pesanan dibuat, QRIS pembayaran akan muncul. Bayar sesuai total, lalu kirim bukti bayar ke WhatsApp toko.';
+}
+function bukaBayar(o){ return o?.metode_bayar === 'transfer' ? bayarTransfer(o) : bayarQris(o); }
+function salin(t, msg){ (navigator.clipboard?.writeText(String(t)) || Promise.reject()).then(()=>toast(msg||'Disalin')).catch(()=>prompt('Salin manual:', t)); }
+function bayarTransfer(o){
+  const st = S.settings;
+  if (!bankAktif()) return bayarQris(o);
+  modal(`<div style="text-align:center"><h2 style="margin:0 0 4px">Transfer Bank</h2>
+    <div class="mut">Pesanan <b>${esc(o.kode)}</b></div>
+    <div style="margin:10px 0 4px" class="mut">Total yang harus ditransfer</div>
+    <div style="font-size:26px;font-weight:800;color:var(--pri)">${rp(o.total)}</div>
+    <button class="btn g sm" style="margin-top:4px" onclick="salin('${o.total}','Nominal disalin')">Salin nominal</button></div>
+    <div class="card" style="box-shadow:none;border:1px solid var(--bd);margin:14px 0;text-align:center">
+      <div class="mut">Bank</div><div style="font-size:18px;font-weight:700">${esc(st.bank_nama)}</div>
+      <div class="mut" style="margin-top:8px">Nomor rekening</div>
+      <div style="font-size:24px;font-weight:800;letter-spacing:1.5px;font-family:monospace">${esc(String(st.bank_norek).replace(/(\d{4})(?=\d)/g,'$1 '))}</div>
+      <button class="btn o sm" style="margin-top:6px" onclick="salin('${esc(st.bank_norek)}','Nomor rekening disalin')">📋 Salin nomor rekening</button>
+      ${st.bank_atas_nama ? `<div class="mut" style="margin-top:8px">Atas nama</div><div style="font-weight:700">${esc(st.bank_atas_nama)}</div>` : ''}
+    </div>
+    <ol class="mut" style="font-size:12.5px;padding-left:18px;margin:4px 0 12px">
+      <li>Transfer <b>tepat ${rp(o.total)}</b> ke rekening di atas.</li>
+      <li>Simpan / screenshot bukti transfer.</li>
+      <li>Kirim bukti transfer ke WhatsApp toko agar pesanan segera diproses.</li></ol>
+    <a class="btn wa blk" style="display:block" target="_blank" href="${waLink(o, true)}">Kirim Bukti Transfer ke WhatsApp</a>
+    <button class="btn g blk" style="margin-top:8px" onclick="closeModal()">Tutup</button>`);
+}
+
 /* ================= MEMBER: PESANAN ================= */
 async function viewPesanan(){
   const d = ok(await sb.from('orders').select('*').eq('member_id', S.session.user.id).order('created_at',{ascending:false}));
@@ -638,7 +675,7 @@ async function viewPesanan(){
   app.innerHTML = `<h1>Pesanan Saya</h1>${d.length ? `<div class="tw"><table><tr><th>Kode</th><th>Tanggal</th><th>Item</th><th>Total</th><th>Status</th><th>Resi J&T</th><th></th></tr>
     ${d.map(o=>`<tr><td><b>${esc(o.kode)}</b></td><td>${tgl(o.created_at)}</td><td>${o.items.map(i=>`${namaItem(i)} ×${i.qty}`).join('<br>')}</td>
       <td>${rp(o.total)}</td><td><span class="st ${o.status}">${o.status}</span></td><td>${o.resi?`<b>${esc(o.resi)}</b><br><button class="btn o sm" style="margin-top:4px" onclick="lacakResi('${esc(o.resi)}')">📦 Lacak</button>`:(o.status==='dikonfirmasi'?'<span class="mut">Sedang dikemas</span>':'-')}</td>
-      <td style="white-space:nowrap">${o.status==='menunggu'?`<button class="btn sm" onclick="bayarQris(PS_LIST.find(x=>x.id===${o.id}))">Bayar</button> `:''}<a class="btn wa sm" href="${waLink(o, o.status==='menunggu')}" target="_blank">WA</a> ${o.status==='menunggu'?`<button class="btn g sm" onclick="batalOrder(${o.id})">Batal</button>`:''}</td></tr>`).join('')}
+      <td style="white-space:nowrap">${o.status==='menunggu'?`<button class="btn sm" onclick="bukaBayar(PS_LIST.find(x=>x.id===${o.id}))">Bayar</button> `:''}<a class="btn wa sm" href="${waLink(o, o.status==='menunggu')}" target="_blank">WA</a> ${o.status==='menunggu'?`<button class="btn g sm" onclick="batalOrder(${o.id})">Batal</button>`:''}</td></tr>`).join('')}
     </table></div>` : '<div class="empty">Belum ada pesanan.</div>'}`;
 }
 async function batalOrder(id){ if(!confirm('Batalkan pesanan ini?')) return; try{ ok(await sb.rpc('cancel_order',{p_id:id})); toast('Pesanan dibatalkan'); route(); }catch(e){fail(e)} }
@@ -755,7 +792,7 @@ function drawAdminPesanan(){
       <td><b>${esc(o.kode)}</b><div class="mut">${tgl(o.created_at)}</div>${o.dicetak_at?'<div class="mut">🖨️ sudah dicetak</div>':''}</td>
       <td><b>${esc(o.penerima_nama)}</b> · ${esc(o.penerima_hp)}<div class="mut">${esc(o.penerima_alamat)}, ${esc([o.penerima_kecamatan,o.penerima_kota,o.penerima_kodepos].filter(Boolean).join(', '))}</div><div class="mut">Member: ${esc(o.profiles?.nama||'-')}</div></td>
       <td>${o.items.map(i=>`${namaItem(i)} ×${i.qty}`).join('<br>')}<div class="mut">${kgJnt(o.berat_gram)} kg</div></td>
-      <td>${esc(o.layanan)}<br>${rp(o.ongkir)}</td><td><b>${rp(o.total)}</b></td>
+      <td>${esc(o.layanan)}<br>${rp(o.ongkir)}</td><td><b>${rp(o.total)}</b><div class="mut">${o.metode_bayar==='transfer'?'🏦 Transfer':'▦ QRIS'}</div></td>
       <td><span class="st ${o.status}">${o.status}</span>${o.resi?`<div class="mut">Resi: ${esc(o.resi)} · <a href="#" onclick="lacakResi('${esc(o.resi)}');return false">lacak</a></div>`:''}</td>
       <td style="white-space:nowrap">${aksiOrder(o)}</td></tr>`).join('')}</table></div>`:'<div class="empty">Tidak ada pesanan.</div>'}`;
   $('#ap').value = autoPrint(); $('#ap').onchange = e => { localStorage.setItem('autoPrint', e.target.value); toast('Disimpan'); };
@@ -1225,6 +1262,11 @@ async function viewAdminPengaturan(){
     <label>Ganti gambar latar (opsional)</label><input type="file" id="fbg" accept="image/*">
     <div class="mut">Gambar tampil di sisi kanan banner, menyatu dengan warna oranye. Bebas rasio (kotak/mendatar).</div>
     <input type="hidden" name="banner_url" value="${esc(s.banner_url||'')}">
+    <h2>Pembayaran Transfer Bank</h2>
+    <div class="row"><div><label>Bank</label><input name="bank_nama" value="${esc(s.bank_nama||'')}" placeholder="mis. BCA / BRI / Mandiri / SeaBank"></div>
+      <div><label>Nomor rekening</label><input name="bank_norek" value="${esc(s.bank_norek||'')}" inputmode="numeric" pattern="[0-9 \-]*" placeholder="hanya angka" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div></div>
+    <label>Atas nama (opsional)</label><input name="bank_atas_nama" value="${esc(s.bank_atas_nama||'')}" placeholder="nama pemilik rekening">
+    <div class="mut">Jika Bank & Nomor rekening diisi, pembeli bisa memilih Transfer Bank saat checkout. Kosongkan untuk menonaktifkan.</div>
     <h2>Pembayaran QRIS</h2>
     <img src="${esc(qrisUrl())}" style="max-height:220px;border-radius:6px;border:1px solid var(--bd)">
     <label>Ganti gambar QRIS (opsional)</label><input type="file" id="fq" accept="image/*">
