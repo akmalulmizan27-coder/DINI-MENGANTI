@@ -641,6 +641,8 @@ async function downloadQris(){
   } catch { window.open(qrisUrl(), '_blank'); }
 }
 
+// link toko untuk pesan WA: pakai link pendek (bit.ly) bila diisi di Pengaturan
+const linkToko = () => (String(S.settings.link_pendek||'').trim() || (location.origin + location.pathname)).replace(/\/$/,'');
 /* ================= DP (UANG MUKA) ================= */
 const hitungDp = (total, pct) => pct ? Math.ceil(total * pct / 100 / 100) * 100 : 0;   // dibulatkan ke atas per Rp100 (sama dengan server)
 const dpDipilih = () => $('#dpOn')?.checked ? +$('#dpPct').value : 0;
@@ -853,8 +855,8 @@ async function simpanResi(id){
   try { ok(await sb.from('orders').update({ resi, status:'dikirim' }).eq('id',id)); 
     const o = AP.list.find(x=>x.id===id); const hp = String(o.penerima_hp).replace(/\D/g,'').replace(/^0/,'62');
     const lunas = o.status_bayar === 'lunas', sisa = o.total - o.dp_nominal;
-    const teks = lunas ? `Halo ${o.penerima_nama}, pesanan ${o.kode} dari ${S.settings.nama_toko||'toko kami'} sudah dikirim via J&T.\nNo. resi: ${resi}\nLacak di: ${location.origin}${location.pathname}#/pesanan\nTerima kasih 🙏`
-      : `Halo ${o.penerima_nama}, pesanan ${o.kode} dari ${S.settings.nama_toko||'toko kami'} sudah dikemas dan resi J&T sudah terbit.\nMohon lakukan PELUNASAN sebesar ${rp(sisa)} (DP ${rp(o.dp_nominal)} sudah kami terima).\nBayar di: ${location.origin}${location.pathname}#/pesanan → Bayar Pelunasan\nNomor resi kami kirim setelah pelunasan diterima. Terima kasih 🙏`;
+    const teks = lunas ? `Halo ${o.penerima_nama}, pesanan ${o.kode} dari ${S.settings.nama_toko||'toko kami'} sudah dikirim via J&T.\nNo. resi: ${resi}\nLacak di: ${linkToko()}#/pesanan\nTerima kasih 🙏`
+      : `Halo ${o.penerima_nama}, pesanan ${o.kode} dari ${S.settings.nama_toko||'toko kami'} sudah dikemas dan resi J&T sudah terbit.\nMohon lakukan PELUNASAN sebesar ${rp(sisa)} (DP ${rp(o.dp_nominal)} sudah kami terima).\nBayar di: ${linkToko()}#/pesanan → Bayar Pelunasan\nNomor resi kami kirim setelah pelunasan diterima. Terima kasih 🙏`;
     const wa = `https://wa.me/${hp}?text=${encodeURIComponent(teks)}`;
     modal(`<h2 style="margin-top:0">✓ Resi tersimpan</h2><p>Status pesanan <b>${esc(o.kode)}</b> → <b>dikirim</b>. Resi: <b>${esc(resi)}</b></p>
       ${lunas ? '' : `<p style="color:var(--err)"><b>Pesanan ini masih DP.</b> Pembeli wajib melunasi ${rp(sisa)}; nomor resi disembunyikan dari pembeli sampai pelunasan diterima.</p>`}
@@ -867,7 +869,7 @@ async function pelunasanDiterima(id){
   if (!confirm(`Pastikan pelunasan ${rp(o.total - o.dp_nominal)} untuk ${o.kode} sudah masuk?`)) return;
   try { ok(await sb.from('orders').update({ status_bayar:'lunas' }).eq('id', id));
     const hp = String(o.penerima_hp).replace(/\D/g,'').replace(/^0/,'62');
-    const teks = `Halo ${o.penerima_nama}, pelunasan pesanan ${o.kode} sudah kami terima. Terima kasih 🙏` + (o.resi ? `\nNo. resi J&T: ${o.resi}\nLacak di: ${location.origin}${location.pathname}#/pesanan` : '');
+    const teks = `Halo ${o.penerima_nama}, pelunasan pesanan ${o.kode} sudah kami terima. Terima kasih 🙏` + (o.resi ? `\nNo. resi J&T: ${o.resi}\nLacak di: ${linkToko()}#/pesanan` : '');
     modal(`<h2 style="margin-top:0">✓ Lunas</h2><p>Pesanan <b>${esc(o.kode)}</b> sudah lunas.${o.resi ? ' Nomor resi sekarang terlihat oleh pembeli.' : ''}</p>
       <a class="btn wa blk" style="display:block" target="_blank" href="https://wa.me/${hp}?text=${encodeURIComponent(teks)}" onclick="closeModal()">Kabari pembeli via WhatsApp</a>
       <button class="btn g blk" style="margin-top:8px" onclick="closeModal()">Tutup</button>`);
@@ -1036,7 +1038,7 @@ async function resetPwMember(id){
     const pw = ok(await sb.rpc('admin_reset_password', { p_member:id }));
     const email = ok(await sb.rpc('admin_email_member', { p_member:id })) || '';
     const hp = String(m.no_hp||'').replace(/\D/g,'').replace(/^0/,'62');
-    const pesan = `Halo ${m.nama||''}, password akun ${S.settings.nama_toko||'toko'} Anda sudah di-reset.\nEmail: ${email}\nPassword sementara: ${pw}\n\nSilakan masuk di ${location.origin}${location.pathname}#/login lalu buat password baru. Jangan bagikan password ini ke siapa pun.`;
+    const pesan = `Halo ${m.nama||''}, password akun ${S.settings.nama_toko||'toko'} Anda sudah di-reset.\nEmail: ${email}\nPassword sementara: ${pw}\n\nSilakan masuk di ${linkToko()}#/login lalu buat password baru. Jangan bagikan password ini ke siapa pun.`;
     modal(`<h2 style="margin-top:0">✓ Password di-reset</h2>
       <p>Member: <b>${esc(m.nama||'-')}</b><br>Email: <b>${esc(email)}</b></p>
       <div class="card" style="box-shadow:none;border:1px dashed var(--pri);text-align:center;font-size:22px;font-weight:800;letter-spacing:2px;font-family:monospace">${esc(pw)}</div>
@@ -1292,6 +1294,7 @@ async function viewAdminPengaturan(){
   const s = S.settings;
   app.innerHTML = `<h1>Pengaturan</h1><div class="two"><div class="card"><h2 style="margin-top:0">Toko & pengirim (label J&T)</h2><form id="fs">
     <label>Nama toko</label><input name="nama_toko" value="${esc(s.nama_toko)}">
+    <label>Link pendek toko (untuk pesan WA)</label><input name="link_pendek" value="${esc(s.link_pendek||'')}" placeholder="mis. https://bit.ly/warungdini">
     <label>Slogan banner beranda</label><input name="slogan" value="${esc(s.slogan||'Lengkap, murah, ramah.')}" maxlength="80" placeholder="mis. Lengkap, murah, ramah.">
     <label>No. WhatsApp toko (penerima pesanan)</label><input name="wa_toko" value="${esc(s.wa_toko)}" placeholder="628xxxx">
     <label>No. HP pengirim (di label)</label><input name="hp_toko" value="${esc(s.hp_toko)}">
