@@ -642,7 +642,7 @@ async function downloadQris(){
 }
 
 // link toko untuk pesan WA: pakai link pendek (bit.ly) bila diisi di Pengaturan
-const linkToko = () => (String(S.settings.link_pendek||'').trim() || (location.origin + location.pathname)).replace(/\/$/,'');
+const linkToko = () => (String(S.settings.link_pendek||'').trim() || 'https://bit.ly/warungdini').replace(/\/$/,'');
 /* ================= DP (UANG MUKA) ================= */
 const hitungDp = (total, pct) => pct ? Math.ceil(total * pct / 100 / 100) * 100 : 0;   // dibulatkan ke atas per Rp100 (sama dengan server)
 const dpDipilih = () => $('#dpOn')?.checked ? +$('#dpPct').value : 0;
@@ -1294,7 +1294,7 @@ async function viewAdminPengaturan(){
   const s = S.settings;
   app.innerHTML = `<h1>Pengaturan</h1><div class="two"><div class="card"><h2 style="margin-top:0">Toko & pengirim (label J&T)</h2><form id="fs">
     <label>Nama toko</label><input name="nama_toko" value="${esc(s.nama_toko)}">
-    <label>Link pendek toko (untuk pesan WA)</label><input name="link_pendek" value="${esc(s.link_pendek||'')}" placeholder="mis. https://bit.ly/warungdini">
+    <label>Link pendek toko (untuk pesan WA)</label><input name="link_pendek" value="${esc(s.link_pendek||'')}" placeholder="kosong = https://bit.ly/warungdini">
     <label>Slogan banner beranda</label><input name="slogan" value="${esc(s.slogan||'Lengkap, murah, ramah.')}" maxlength="80" placeholder="mis. Lengkap, murah, ramah.">
     <label>No. WhatsApp toko (penerima pesanan)</label><input name="wa_toko" value="${esc(s.wa_toko)}" placeholder="628xxxx">
     <label>No. HP pengirim (di label)</label><input name="hp_toko" value="${esc(s.hp_toko)}">
