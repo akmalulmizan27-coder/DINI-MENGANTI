@@ -714,6 +714,8 @@ async function downloadQris(){
 
 // link toko untuk pesan WA: pakai link pendek (bit.ly) bila diisi di Pengaturan
 const linkToko = () => (String(S.settings.link_pendek||'').trim() || 'https://bit.ly/warungdini').replace(/\/$/,'');
+function toggleTarif(){ const on = localStorage.getItem('tarifTampil') !== '1'; localStorage.setItem('tarifTampil', on ? '1' : '0');
+  $('#tarifCard').style.display = on ? '' : 'none'; $('#tarifTgl').textContent = `${on?'Sembunyikan':'Tampilkan'} tarif manual J&T`; if (on) $('#tarifCard').scrollIntoView({ behavior:'smooth' }); }
 /* ================= TUKAR POIN JADI POTONGAN HARGA ================= */
 // 1 poin = Rp1, semua poin dipakai
 const ratePoin = () => 1;
@@ -1390,7 +1392,7 @@ async function viewAdminPengaturan(){
   const tarif = ok(await sb.from('tarif_manual').select('*').order('kota'));
   const api = await cekOngkirApi();
   const s = S.settings;
-  app.innerHTML = `<h1>Pengaturan</h1><div class="two"><div class="card"><h2 style="margin-top:0">Toko & pengirim (label J&T)</h2><form id="fs">
+  app.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h1>Pengaturan</h1><button type="button" class="btn g sm" id="tarifTgl" onclick="toggleTarif()">${localStorage.getItem('tarifTampil')==='1'?'Sembunyikan':'Tampilkan'} tarif manual J&T</button></div><div class="two"><div class="card"><h2 style="margin-top:0">Toko & pengirim (label J&T)</h2><form id="fs">
     <label>Nama toko</label><input name="nama_toko" value="${esc(s.nama_toko)}">
     <label>Link pendek toko (untuk pesan WA)</label><input name="link_pendek" value="${esc(s.link_pendek||'')}" placeholder="kosong = https://bit.ly/warungdini">
     <label>Slogan banner beranda</label><input name="slogan" value="${esc(s.slogan||'Lengkap, murah, ramah.')}" maxlength="80" placeholder="mis. Lengkap, murah, ramah.">
@@ -1429,7 +1431,7 @@ async function viewAdminPengaturan(){
     <input type="hidden" name="qris_url" value="${esc(s.qris_url||'')}">
     <div class="mut">Upload ulang hanya jika QRIS toko berganti. Gambar asli disimpan tanpa dikompres agar tetap bisa di-scan.</div>
     <button class="btn blk" style="margin-top:14px">Simpan pengaturan</button></form></div>
-    <div class="card" style="align-self:start;display:none"><h2 style="margin-top:0">Tarif manual J&T per kota</h2><p class="mut">Dipakai bila API ongkir belum aktif. Berat dibulatkan aturan J&T (toleransi 0,3 kg).</p>
+    <div class="card" id="tarifCard" style="align-self:start;${localStorage.getItem('tarifTampil')==='1'?'':'display:none'}"><h2 style="margin-top:0">Tarif manual J&T per kota</h2><p class="mut">Dipakai bila API ongkir belum aktif. Berat dibulatkan aturan J&T (toleransi 0,3 kg).</p>
     <div class="tw"><table><tr><th>Kota</th><th>Per kg</th><th>Estimasi</th><th></th></tr>${tarif.map(t=>`<tr><td>${esc(t.kota)}</td><td>${rp(t.tarif_per_kg)}</td><td>${esc(t.etd)}</td><td><button class="btn g sm" onclick="hapus('tarif_manual',${t.id})">✕</button></td></tr>`).join('')}</table></div>
     <form id="ft" class="row" style="margin-top:10px"><input name="kota" placeholder="Kota" required><input name="tarif_per_kg" type="number" placeholder="Tarif/kg" required><input name="etd" placeholder="2-3 hari"><button class="btn" style="flex:none">+</button></form></div></div>`;
   pasangKoordinat();
