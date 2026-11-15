@@ -902,7 +902,7 @@ function aksiOrder(o){
   if (o.status==='dikirim') b.push(o.status_bayar==='lunas' ? `<button class="btn ok sm" onclick="setStatus(${o.id},'selesai')">Selesai</button>` : `<button class="btn ok sm" disabled title="Belum lunas">Selesai (belum lunas)</button>`, `<button class="btn g sm" onclick="inputResi(${o.id})">Ubah resi</button>`);
   if (['menunggu','dikonfirmasi','dikirim','selesai'].includes(o.status)) b.push(`<button class="btn g sm" onclick="cetakLabel([${o.id}])">🖨️</button>`);
   b.push(`<a class="btn wa sm" target="_blank" href="https://wa.me/${String(o.penerima_hp).replace(/\D/g,'').replace(/^0/,'62')}?text=${encodeURIComponent(`Halo ${o.penerima_nama}, pesanan ${o.kode} status: ${o.status}${o.resi?`. Resi J&T: ${o.resi}`:''}`)}">WA</a>`);
-  b.push(`<button class="btn g sm" title="Tambah poin manual" onclick="poinModal('${o.member_id}','${esc(o.profiles?.nama||'').replace(/'/g,'')}','Pesanan ${o.kode}')">+Poin</button>`);
+  if (o.status === 'selesai') b.push(`<button class="btn g sm" title="Tambah poin manual" onclick="poinModal('${o.member_id}','${esc(o.profiles?.nama||'').replace(/'/g,'')}','Pesanan ${o.kode}')">+Poin</button>`);
   if (['menunggu','dikonfirmasi'].includes(o.status)) b.push(`<button class="btn g sm" onclick="batalAdmin(${o.id})">Batal</button>`);
   return b.join(' ');
 }
