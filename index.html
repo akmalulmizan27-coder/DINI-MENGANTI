@@ -581,7 +581,7 @@ async function viewCheckout(){
       <div><span>Subtotal</span><b>${rp(sub)}</b></div>
       <div><span>Berat J&T</span><span>${kgJnt(berat)} kg</span></div>
       <div><span>Ongkir J&T</span><span id="ong">-</span></div>
-      ${potonganAktif() && (p.poin||0) > 0 ? `<label class="svc" style="margin:6px 0"><input type="checkbox" id="pakaiPoin" onchange="hitungTotal()"><div style="flex:1;display:block"><b>Tukar poin jadi potongan harga</b><div class="mut" id="poinInfo" style="display:block">Saldo ${(p.poin||0).toLocaleString('id-ID')} poin = potongan ${rp(p.poin||0)}</div></div></label>
+      ${potonganAktif() && (p.poin||0) > 0 ? `<label class="svc" style="margin:6px 0"><input type="checkbox" id="pakaiPoin" onchange="hitungTotal()" ${sub < minBelanjaPoin() ? 'disabled' : ''}><div style="flex:1;display:block"><b>Tukar poin jadi potongan harga</b><div class="mut" id="poinInfo" style="display:block">Saldo ${(p.poin||0).toLocaleString('id-ID')} poin = potongan ${rp(p.poin||0)}${sub < minBelanjaPoin() ? ` · bisa dipakai untuk belanja min. ${rp(minBelanjaPoin())}` : ''}</div></div></label>
       <div id="potRow" style="display:none"><span>Potongan poin</span><span id="pot" style="color:var(--ok);font-weight:600">-</span></div>` : ''}
       <div class="tot"><span>Total</span><span id="tot">${rp(sub)}</span></div>
       <h2>Metode pembayaran</h2>
@@ -645,7 +645,7 @@ function drawSvc(){
   CO.svc = CO.opsi[0]; hitungTotal();
 }
 function hitungTotal(){ const o = CO.svc?.ongkir || 0; $('#ong').textContent = CO.svc ? rp(o) : '-';
-  if ($('#pakaiPoin')) { const k = potonganPoin(), r = ratePoin(), saldo = S.profile?.poin || 0;
+  if ($('#pakaiPoin') && !$('#pakaiPoin').disabled) { const k = potonganPoin(), r = ratePoin(), saldo = S.profile?.poin || 0;
     $('#potRow').style.display = k.pot ? '' : 'none'; $('#pot').textContent = '−' + rp(k.pot);
     $('#poinInfo').textContent = k.poin ? `${k.poin.toLocaleString('id-ID')} poin dipakai · sisa ${(saldo-k.poin).toLocaleString('id-ID')} poin` : `Saldo ${saldo.toLocaleString('id-ID')} poin = potongan ${rp(saldo)}`; }
   $('#tot').textContent = rp(totalCO()); if ($('#dpOn')) ubahDp(); else if ($('#buat')) pilihMetode(); }
@@ -718,8 +718,9 @@ const linkToko = () => (String(S.settings.link_pendek||'').trim() || 'https://bi
 // 1 poin = Rp1, semua poin dipakai
 const ratePoin = () => 1;
 const potonganAktif = () => S.settings.poin_potongan_aktif === '1';
+const minBelanjaPoin = () => parseInt(S.settings.poin_min_belanja, 10) || 100000;
 function potonganPoin(){
-  if (!$('#pakaiPoin')?.checked) return { poin:0, pot:0 };
+  if (!$('#pakaiPoin')?.checked || CO.sub < minBelanjaPoin()) return { poin:0, pot:0 };
   const poin = Math.min(S.profile?.poin || 0, CO.sub + (CO.svc?.ongkir || 0));
   return { poin, pot: poin };
 }
@@ -1160,7 +1161,7 @@ async function viewAdminHadiah(){
   const st = S.settings;
   app.innerHTML = `<h1>Katalog Hadiah</h1>
     <div class="card" style="margin-bottom:14px"><h2 style="margin-top:0">Program tukar poin jadi potongan harga</h2>
-      <p class="mut">Bila aktif, member bisa centang "Tukar poin" saat checkout. Semua poin otomatis dipakai sebagai potongan harga. <b>1 poin = Rp1</b> (100 poin = Rp100).</p>
+      <p class="mut">Bila aktif, member bisa centang "Tukar poin" saat checkout. Semua poin otomatis dipakai sebagai potongan harga. <b>1 poin = Rp1</b> (100 poin = Rp100). Hanya untuk belanja minimal <b>${rp(+st.poin_min_belanja||100000)}</b>.</p>
       <form id="fpp" class="row" style="align-items:flex-end">
         <label style="flex:none;display:flex;gap:6px;align-items:center;margin:0 0 10px"><input type="checkbox" name="aktif" style="width:18px;height:18px" ${st.poin_potongan_aktif==='1'?'checked':''}> Aktifkan</label>
         <button class="btn" style="flex:none">Simpan</button></form>
