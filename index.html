@@ -581,7 +581,7 @@ async function viewCheckout(){
       <div><span>Subtotal</span><b>${rp(sub)}</b></div>
       <div><span>Berat J&T</span><span>${kgJnt(berat)} kg</span></div>
       <div><span>Ongkir J&T</span><span id="ong">-</span></div>
-      ${potonganAktif() && (p.poin||0) > 0 ? `<label class="svc" style="margin:6px 0"><input type="checkbox" id="pakaiPoin" onchange="hitungTotal()"><div style="flex:1;display:block"><b>Tukar poin jadi potongan harga</b><div class="mut" id="poinInfo" style="display:block">Saldo ${(p.poin||0).toLocaleString('id-ID')} poin = potongan ${rp(Math.min((p.poin||0)*ratePoin(), sub))}</div></div></label>
+      ${potonganAktif() && (p.poin||0) > 0 ? `<label class="svc" style="margin:6px 0"><input type="checkbox" id="pakaiPoin" onchange="hitungTotal()"><div style="flex:1;display:block"><b>Tukar poin jadi potongan harga</b><div class="mut" id="poinInfo" style="display:block">Saldo ${(p.poin||0).toLocaleString('id-ID')} poin = potongan ${rp(p.poin||0)}</div></div></label>
       <div id="potRow" style="display:none"><span>Potongan poin</span><span id="pot" style="color:var(--ok);font-weight:600">-</span></div>` : ''}
       <div class="tot"><span>Total</span><span id="tot">${rp(sub)}</span></div>
       <h2>Metode pembayaran</h2>
@@ -647,7 +647,7 @@ function drawSvc(){
 function hitungTotal(){ const o = CO.svc?.ongkir || 0; $('#ong').textContent = CO.svc ? rp(o) : '-';
   if ($('#pakaiPoin')) { const k = potonganPoin(), r = ratePoin(), saldo = S.profile?.poin || 0;
     $('#potRow').style.display = k.pot ? '' : 'none'; $('#pot').textContent = '−' + rp(k.pot);
-    $('#poinInfo').textContent = k.poin ? `${k.poin.toLocaleString('id-ID')} poin dipakai · sisa ${(saldo-k.poin).toLocaleString('id-ID')} poin` : `Saldo ${saldo.toLocaleString('id-ID')} poin = potongan ${rp(Math.min(saldo*r, CO.sub))}`; }
+    $('#poinInfo').textContent = k.poin ? `${k.poin.toLocaleString('id-ID')} poin dipakai · sisa ${(saldo-k.poin).toLocaleString('id-ID')} poin` : `Saldo ${saldo.toLocaleString('id-ID')} poin = potongan ${rp(saldo)}`; }
   $('#tot').textContent = rp(totalCO()); if ($('#dpOn')) ubahDp(); else if ($('#buat')) pilihMetode(); }
 async function buatPesanan(){
   const nama = $('#nm').value.trim(), hp = $('#hp').value.trim(), alamat = $('#al').value.trim();
@@ -715,12 +715,13 @@ async function downloadQris(){
 // link toko untuk pesan WA: pakai link pendek (bit.ly) bila diisi di Pengaturan
 const linkToko = () => (String(S.settings.link_pendek||'').trim() || 'https://bit.ly/warungdini').replace(/\/$/,'');
 /* ================= TUKAR POIN JADI POTONGAN HARGA ================= */
-const ratePoin = () => { const v = parseInt(S.settings.poin_rupiah, 10); return v > 0 ? v : 0; };
-const potonganAktif = () => S.settings.poin_potongan_aktif === '1' && ratePoin() > 0;
+// 1 poin = Rp1, semua poin dipakai
+const ratePoin = () => 1;
+const potonganAktif = () => S.settings.poin_potongan_aktif === '1';
 function potonganPoin(){
   if (!$('#pakaiPoin')?.checked) return { poin:0, pot:0 };
-  const r = ratePoin(), saldo = S.profile?.poin || 0, poin = Math.min(saldo, Math.ceil(CO.sub / r));
-  return { poin, pot: Math.min(poin * r, CO.sub) };
+  const poin = Math.min(S.profile?.poin || 0, CO.sub + (CO.svc?.ongkir || 0));
+  return { poin, pot: poin };
 }
 const totalCO = () => CO.sub + (CO.svc?.ongkir || 0) - potonganPoin().pot;
 /* ================= DP (UANG MUKA) ================= */
@@ -1159,22 +1160,18 @@ async function viewAdminHadiah(){
   const st = S.settings;
   app.innerHTML = `<h1>Katalog Hadiah</h1>
     <div class="card" style="margin-bottom:14px"><h2 style="margin-top:0">Program tukar poin jadi potongan harga</h2>
-      <p class="mut">Bila aktif, member bisa centang "Tukar poin" saat checkout. Semua poin otomatis dipakai sebagai potongan (maksimal sebesar harga belanja, tidak termasuk ongkir).</p>
+      <p class="mut">Bila aktif, member bisa centang "Tukar poin" saat checkout. Semua poin otomatis dipakai sebagai potongan harga. <b>1 poin = Rp1</b> (100 poin = Rp100).</p>
       <form id="fpp" class="row" style="align-items:flex-end">
         <label style="flex:none;display:flex;gap:6px;align-items:center;margin:0 0 10px"><input type="checkbox" name="aktif" style="width:18px;height:18px" ${st.poin_potongan_aktif==='1'?'checked':''}> Aktifkan</label>
-        <div><label>Nilai 1 poin (Rp)</label><input name="rate" value="${esc(st.poin_rupiah||'')}" placeholder="mis. 10" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
         <button class="btn" style="flex:none">Simpan</button></form>
-      <div class="mut" id="ppContoh"></div></div>
+</div>
     <div class="toolbar"><button class="btn" onclick="formHadiah()">+ Tambah hadiah</button></div>
     ${AH.length?`<div class="tw"><table><tr><th>Foto</th><th>Nama</th><th>Poin</th><th>Stok</th><th>Aktif</th><th></th></tr>
     ${AH.map(r=>`<tr><td>${r.foto_url?`<img src="${esc(r.foto_url)}" style="width:44px;height:44px;object-fit:cover;border-radius:6px">`:'🎁'}</td><td><b>${esc(r.nama)}</b><div class="mut">${esc(r.deskripsi)}</div></td>
       <td>${r.poin}</td><td>${r.stok}</td><td>${r.aktif?'✅':'—'}</td><td><button class="btn g sm" onclick="formHadiah(${r.id})">Edit</button></td></tr>`).join('')}</table></div>`:'<div class="empty">Belum ada hadiah.</div>'}`;
-  const contoh = () => { const r = +$('[name=rate]').value || 0; $('#ppContoh').textContent = r ? `Contoh: member punya 1.500 poin → potongan ${rp(1500*r)}` : ''; };
-  contoh(); $('[name=rate]').addEventListener('input', contoh);
   $('#fpp').onsubmit = async e => { e.preventDefault();
-    const aktif = e.target.aktif.checked, rate = e.target.rate.value.trim();
-    if (aktif && !(+rate > 0)) return toast('Isi nilai 1 poin dalam Rupiah', true);
-    try { ok(await sb.from('settings').upsert([{ key:'poin_potongan_aktif', value: aktif?'1':'0' }, { key:'poin_rupiah', value: rate }])); await loadSettings();
+    const aktif = e.target.aktif.checked;
+    try { ok(await sb.from('settings').upsert([{ key:'poin_potongan_aktif', value: aktif?'1':'0' }])); await loadSettings();
       toast(aktif ? '✓ Program tukar poin aktif' : 'Program tukar poin dinonaktifkan'); } catch(er){ fail(er); } };
 }
 function formHadiah(id){
