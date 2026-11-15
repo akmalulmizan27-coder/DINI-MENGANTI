@@ -1429,7 +1429,7 @@ async function viewAdminPengaturan(){
     <input type="hidden" name="qris_url" value="${esc(s.qris_url||'')}">
     <div class="mut">Upload ulang hanya jika QRIS toko berganti. Gambar asli disimpan tanpa dikompres agar tetap bisa di-scan.</div>
     <button class="btn blk" style="margin-top:14px">Simpan pengaturan</button></form></div>
-    <div class="card" style="align-self:start"><h2 style="margin-top:0">Tarif manual J&T per kota</h2><p class="mut">Dipakai bila API ongkir belum aktif. Berat dibulatkan aturan J&T (toleransi 0,3 kg).</p>
+    <div class="card" style="align-self:start;display:none"><h2 style="margin-top:0">Tarif manual J&T per kota</h2><p class="mut">Dipakai bila API ongkir belum aktif. Berat dibulatkan aturan J&T (toleransi 0,3 kg).</p>
     <div class="tw"><table><tr><th>Kota</th><th>Per kg</th><th>Estimasi</th><th></th></tr>${tarif.map(t=>`<tr><td>${esc(t.kota)}</td><td>${rp(t.tarif_per_kg)}</td><td>${esc(t.etd)}</td><td><button class="btn g sm" onclick="hapus('tarif_manual',${t.id})">✕</button></td></tr>`).join('')}</table></div>
     <form id="ft" class="row" style="margin-top:10px"><input name="kota" placeholder="Kota" required><input name="tarif_per_kg" type="number" placeholder="Tarif/kg" required><input name="etd" placeholder="2-3 hari"><button class="btn" style="flex:none">+</button></form></div></div>`;
   pasangKoordinat();
