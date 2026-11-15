@@ -471,12 +471,71 @@ function viewDaftar(){
   $('#f').onsubmit = async e => {
     e.preventDefault(); const b = e.target.querySelector('button'); b.disabled = true;
     const fd = Object.fromEntries(new FormData(e.target));
+    if (!hpValid(fd.no_hp)) { b.disabled = false; return toast('No. HP tidak valid (contoh: 081234567890)', true); }
     const { data, error } = await sb.auth.signUp({ email: fd.email, password: fd.password, options:{ data:{ nama: fd.nama, no_hp: fd.no_hp } } });
     b.disabled = false;
     if (error) return fail(error);
     if (!data.session) { app.innerHTML = `<div class="auth card"><h1>Cek email Anda</h1><p>Kami mengirim link konfirmasi ke <b>${esc(fd.email)}</b>. Klik link tersebut lalu masuk.</p><a class="btn" href="#/login">Ke halaman masuk</a></div>`; return; }
     toast('Pendaftaran berhasil, selamat datang!'); location.hash = '#/katalog';
   };
+}
+
+/* ----- alamat member + kode pos otomatis ----- */
+function hpValid(v){ return /^(08|628)\d{7,12}$/.test(String(v||'').trim()); }
+function profilLengkap(p){ return p && hpValid(p.no_hp) && (p.alamat||'').trim() && (p.kota||'').trim() && /^\d{5}$/.test(p.kodepos||''); }
+let ALM = {};
+function formAlamatHtml(p){
+  const awal = p.tujuan_label || [p.kelurahan,p.kecamatan,p.kota].filter(Boolean).join(', ');
+  ALM = { p, awal, pilih:null, list:[] };
+  return `<label>Alamat lengkap (jalan, no rumah, RT/RW)</label><textarea id="almJl" rows="2" placeholder="mis. Jl. Rungkut Mejoyo Selatan 4 No. 62">${esc(p.alamat)}</textarea>
+    <label>Kelurahan / kecamatan</label><input id="almCari" autocomplete="off" placeholder="Ketik min. 3 huruf, mis. Kali Rungkut" value="${esc(awal)}"><div id="almSugg"></div>
+    <div class="row"><div><label>Kota</label><input id="almKota" value="${esc(p.kota)}"></div><div><label>Kode pos</label><input id="almKp" value="${esc(p.kodepos)}" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')" maxlength="5" placeholder="otomatis"></div></div>
+    <p class="mut" style="margin:4px 0 0">Pilih kelurahan dari daftar, kota & kode pos terisi otomatis.</p>`;
+}
+function pasangFormAlamat(){ let tm; $('#almCari').oninput = e => { ALM.pilih = null; clearTimeout(tm); tm = setTimeout(()=>cariAlamat(e.target.value.trim()), 400); }; }
+async function cariAlamat(q){
+  if (q.length < 3) { $('#almSugg').innerHTML = ''; return; }
+  $('#almSugg').innerHTML = '<div class="mut">Mencari…</div>';
+  let list = [];
+  try { const { data } = await sb.functions.invoke('ongkir-jnt', { body:{ action:'search', q } }); list = data?.data || []; } catch {}
+  ALM.list = list;
+  $('#almSugg').innerHTML = list.length ? `<div class="sugg">${list.map((d,i)=>`<div onclick="pilihAlamat(${i})">${esc(d.label || [d.subdistrict_name,d.district_name,d.city_name].join(', '))}${d.zip_code&&d.zip_code!=='0'?` · <b>${esc(d.zip_code)}</b>`:''}</div>`).join('')}</div>` : '<div class="mut">Tidak ditemukan, isi kota & kode pos manual.</div>';
+}
+function pilihAlamat(i){
+  const d = ALM.list[i];
+  ALM.pilih = { id:String(d.id), label:d.label || [d.subdistrict_name,d.district_name,d.city_name].join(', '), kota:d.city_name||'', kecamatan:d.district_name||'', kelurahan:d.subdistrict_name||'' };
+  $('#almCari').value = ALM.pilih.label; $('#almSugg').innerHTML = '';
+  $('#almKota').value = ALM.pilih.kota;
+  if (d.zip_code && d.zip_code !== '0') $('#almKp').value = d.zip_code;
+}
+function dataAlamat(){
+  const s = ALM.pilih, p = ALM.p || {}, tetap = !s && $('#almCari').value.trim() === ALM.awal;
+  return { alamat:$('#almJl').value.trim(), kota:$('#almKota').value.trim(), kodepos:$('#almKp').value.trim(),
+    kecamatan: s ? s.kecamatan : tetap ? (p.kecamatan||'') : '', kelurahan: s ? s.kelurahan : tetap ? (p.kelurahan||'') : $('#almCari').value.trim(),
+    tujuan_id: s ? s.id : tetap ? (p.tujuan_id||null) : null, tujuan_label: s ? s.label : $('#almCari').value.trim() };
+}
+function cekAlamat(a){
+  if (!a.alamat) return 'Isi alamat lengkap';
+  if (!a.kota) return 'Pilih kelurahan / isi kota';
+  if (!/^\d{5}$/.test(a.kodepos)) return 'Kode pos harus 5 angka';
+  return '';
+}
+function lengkapiAlamatModal(){
+  const p = S.profile || {};
+  $('#modalRoot').innerHTML = `<div class="modal"><div class="card" style="max-width:480px">
+    <h2 style="margin-top:0">Lengkapi data pengiriman</h2><p class="mut">Sebelum checkout, lengkapi No. HP & alamat Anda dulu. Data ini disimpan di profil untuk pesanan berikutnya.</p>
+    <label>No. HP / WhatsApp</label><input id="almHp" value="${esc(hpValid(p.no_hp)?p.no_hp:'')}" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder="08xxxxxxxxxx">
+    ${formAlamatHtml(p)}
+    <div class="row" style="margin-top:14px"><a class="btn g" href="#/keranjang" onclick="closeModal()">Kembali</a><button class="btn" id="almSimpan" onclick="simpanAlamatModal()">Simpan & lanjut checkout</button></div></div></div>`;
+  pasangFormAlamat();
+}
+async function simpanAlamatModal(){
+  const hp = $('#almHp').value.trim(), a = dataAlamat();
+  if (!hpValid(hp)) return toast('No. HP tidak valid (contoh: 081234567890)', true);
+  const er = cekAlamat(a); if (er) return toast(er, true);
+  $('#almSimpan').disabled = true;
+  try { ok(await sb.from('profiles').update({ no_hp:hp, ...a }).eq('id', S.session.user.id)); await loadProfile(); closeModal(); toast('✓ Alamat tersimpan'); viewCheckout(); }
+  catch(e){ $('#almSimpan').disabled = false; fail(e); }
 }
 
 /* ================= KERANJANG ================= */
@@ -501,6 +560,7 @@ let CO = {};
 async function viewCheckout(){
   if (!S.cart.length) { location.hash = '#/keranjang'; return; }
   await loadProfile(); // ambil akses DP terbaru dari admin
+  if (S.profile && S.profile.role !== 'admin' && !profilLengkap(S.profile)) { app.innerHTML = '<h1>Checkout</h1>'; lengkapiAlamatModal(); return; }
   const tarif = ok(await sb.from('tarif_manual').select('*').order('kota'));
   const p = S.profile || {};
   const berat = S.cart.reduce((a,b)=>a+b.berat*b.qty,0), sub = S.cart.reduce((a,b)=>a+b.harga*b.qty,0);
@@ -510,7 +570,7 @@ async function viewCheckout(){
     <div class="row"><div><label>Nama penerima</label><input id="nm" value="${esc(p.nama)}"></div><div><label>No. HP</label><input id="hp" value="${esc(p.no_hp)}" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder="08xxxxxxxxxx"></div></div>
     <label>Alamat lengkap (jalan, no rumah, RT/RW, kelurahan)</label><textarea id="al" rows="2">${esc(p.alamat)}</textarea>
     <label>Kota / kecamatan tujuan</label>
-    <div id="tujuanBox"><input id="cari" placeholder="Ketik min. 3 huruf, mis. Wonokromo" value="${esc(p.kecamatan||p.kota)}"><div id="sugg"></div></div>
+    <div id="tujuanBox"><input id="cari" placeholder="Ketik min. 3 huruf, mis. Wonokromo" value="${esc(p.tujuan_label||p.kecamatan||p.kota)}"><div id="sugg"></div></div>
     <div class="row"><div><label>Kode pos</label><input id="kp" value="${esc(p.kodepos)}" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')" maxlength="5"></div></div>
     <label>Catatan (opsional)</label><input id="ct">
     <h2>Kurir</h2><label class="svc kurir on"><input type="radio" name="kurir" checked><div style="flex:1"><img src="/jnt.png" alt="J&T Express" style="height:30px;display:block"><div class="mut">Antar kota / luar kota</div></div></label>
@@ -538,7 +598,8 @@ async function viewCheckout(){
   if (!t) { CO.mode = 'manual'; drawTujuanManual(); }
   else {
     let tm; $('#cari').oninput = e => { clearTimeout(tm); tm = setTimeout(()=>cariTujuan(e.target.value), 400); };
-    if ($('#cari').value.length >= 3) cariTujuan($('#cari').value);
+    if (p.tujuan_id) { CO.sugg = [{ id:p.tujuan_id, label:p.tujuan_label, city_name:p.kota, district_name:p.kecamatan, subdistrict_name:p.kelurahan, zip_code:p.kodepos }]; pilihTujuan(0); }
+    else if ($('#cari').value.length >= 3) cariTujuan($('#cari').value);
   }
 }
 async function cekOngkirApi(){
@@ -554,7 +615,7 @@ async function cariTujuan(q){
 }
 async function pilihTujuan(i){
   const d = CO.sugg[i];
-  CO.tujuan = { id: d.id, kota: d.city_name || '', kecamatan: d.district_name || '', label: d.label };
+  CO.tujuan = { id: d.id, kota: d.city_name || '', kecamatan: d.district_name || '', kelurahan: d.subdistrict_name || '', label: d.label };
   $('#cari').value = d.label || d.district_name; $('#sugg').innerHTML = '';
   if (d.zip_code && d.zip_code !== '0') $('#kp').value = d.zip_code;
   $('#svc').innerHTML = 'Menghitung ongkir J&T…';
@@ -585,6 +646,7 @@ function hitungTotal(){ const o = CO.svc?.ongkir || 0; $('#ong').textContent = C
 async function buatPesanan(){
   const nama = $('#nm').value.trim(), hp = $('#hp').value.trim(), alamat = $('#al').value.trim();
   if (!nama || !hp || !alamat) return toast('Lengkapi nama, HP, dan alamat', true);
+  if (!hpValid(hp)) return toast('No. HP tidak valid (contoh: 081234567890)', true);
   if (CO.mode === 'manual' && $('#kotaM')?.value === 'lain') CO.tujuan.kota = $('#kotaLain').value.trim();
   if (!CO.tujuan || !CO.tujuan.kota && !CO.tujuan.label) return toast('Pilih kota tujuan', true);
   if (!CO.svc) return toast('Pilih layanan J&T', true);
@@ -594,7 +656,8 @@ async function buatPesanan(){
       tujuan_id: String(CO.tujuan.id||''), layanan: CO.svc.layanan, ongkir: CO.svc.ongkir, etd: CO.svc.etd || '', catatan: $('#ct').value.trim(), metode_bayar: metodeDipilih(), dp_persen: dpDipilih() };
     const kode = ok(await sb.rpc('create_order', { p_items: S.cart.map(c=>({ id:c.id, qty:c.qty, satuan:c.satuan||'pack' })), p_kirim: kirim }));
     // simpan alamat ke profil
-    await sb.from('profiles').update({ alamat, kota: kirim.kota, kecamatan: kirim.kecamatan, kodepos: kirim.kodepos }).eq('id', S.session.user.id);
+    await sb.from('profiles').update({ alamat, kota: kirim.kota, kecamatan: kirim.kecamatan, kodepos: kirim.kodepos,
+      ...(CO.tujuan.id ? { kelurahan: CO.tujuan.kelurahan||'', tujuan_id: String(CO.tujuan.id), tujuan_label: CO.tujuan.label||'' } : {}) }).eq('id', S.session.user.id);
     const o = ok(await sb.from('orders').select('*').eq('kode', kode).single());
     S.cart = []; saveCart();
     ORD_TERAKHIR = o;
@@ -763,13 +826,16 @@ function viewProfil(){
   app.innerHTML = `<div class="auth card" style="max-width:520px"><h1>Profil</h1><p class="mut">${esc(S.session.user.email)}</p>
     <form id="f"><label>Nama</label><input name="nama" value="${esc(p.nama)}" required>
     <label>No. HP / WhatsApp</label><input name="no_hp" value="${esc(p.no_hp)}" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder="08xxxxxxxxxx">
-    <label>Alamat</label><textarea name="alamat" rows="2">${esc(p.alamat)}</textarea>
-    <div class="row"><div><label>Kecamatan</label><input name="kecamatan" value="${esc(p.kecamatan)}"></div><div><label>Kota</label><input name="kota" value="${esc(p.kota)}"></div></div>
-    <label>Kode pos</label><input name="kodepos" value="${esc(p.kodepos)}" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')" maxlength="5">
+    ${formAlamatHtml(p)}
     <button class="btn blk" style="margin-top:14px">Simpan</button></form>
     <h2>Ganti password</h2><div class="row"><input id="pw" type="password" placeholder="Password baru (min. 6)"><button class="btn o" style="flex:none" onclick="gantiPw()">Ganti</button></div>
     <button class="btn g blk" style="margin-top:18px;color:var(--err)" onclick="logout()">Keluar dari akun</button></div>`;
-  $('#f').onsubmit = async e => { e.preventDefault(); try { ok(await sb.from('profiles').update(Object.fromEntries(new FormData(e.target))).eq('id',S.session.user.id)); await loadProfile(); toast('Profil disimpan'); } catch(er){ fail(er); } };
+  pasangFormAlamat();
+  $('#f').onsubmit = async e => { e.preventDefault();
+    const fd = Object.fromEntries(new FormData(e.target)), a = dataAlamat();
+    if (!hpValid(fd.no_hp)) return toast('No. HP tidak valid (contoh: 081234567890)', true);
+    if (a.kodepos && !/^\d{5}$/.test(a.kodepos)) return toast('Kode pos harus 5 angka', true);
+    try { ok(await sb.from('profiles').update({ ...fd, ...a }).eq('id',S.session.user.id)); await loadProfile(); toast('Profil disimpan'); } catch(er){ fail(er); } };
 }
 async function gantiPw(){ const pw = $('#pw').value; if (pw.length<6) return toast('Minimal 6 karakter', true); const { error } = await sb.auth.updateUser({ password:pw }); if (error) return fail(error); await sb.from('profiles').update({ wajib_ganti_pw:false }).eq('id', S.session.user.id); toast('Password diganti'); }
 
@@ -1015,10 +1081,10 @@ async function hapus(tbl, id){
 let AM = [];
 async function viewAdminMember(){
   AM = ok(await sb.from('profiles').select('*').order('created_at',{ascending:false}));
-  app.innerHTML = `<h1>Member & Poin</h1><div class="toolbar"><input id="q" placeholder="Cari nama / HP"></div><div class="tw"><table id="tb"></table></div>`;
-  const draw = (q='') => $('#tb').innerHTML = `<tr><th>Nama</th><th>No. HP</th><th>Alamat</th><th>Role</th><th>Poin</th><th>Akses DP</th><th>Daftar</th><th></th></tr>` +
-    AM.filter(m=>(m.nama+m.no_hp).toLowerCase().includes(q.toLowerCase())).map(m=>`<tr><td><b>${esc(m.nama||'(tanpa nama)')}</b></td><td>${esc(m.no_hp)}</td>
-    <td class="mut">${esc([m.alamat,m.kota].filter(Boolean).join(', '))}</td><td>${m.role==='admin'?'<span class="st dikonfirmasi">admin</span>':'member'}</td>
+  app.innerHTML = `<h1>Member & Poin</h1><div class="toolbar"><input id="q" placeholder="Cari nama / HP / email"></div><div class="tw"><table id="tb"></table></div>`;
+  const draw = (q='') => $('#tb').innerHTML = `<tr><th>Nama</th><th>No. HP</th><th>Email</th><th>Alamat</th><th>Role</th><th>Poin</th><th>Akses DP</th><th>Daftar</th><th></th></tr>` +
+    AM.filter(m=>(m.nama+m.no_hp+(m.email||'')).toLowerCase().includes(q.toLowerCase())).map(m=>`<tr><td><b>${esc(m.nama||'(tanpa nama)')}</b></td><td>${esc(m.no_hp)||'<span class="mut">-</span>'}</td><td style="word-break:break-all">${esc(m.email||'')}</td>
+    <td class="mut">${esc([m.alamat,m.kelurahan,m.kota].filter(Boolean).join(', '))}${m.kodepos?' '+esc(m.kodepos):''}</td><td>${m.role==='admin'?'<span class="st dikonfirmasi">admin</span>':'member'}</td>
     <td><b style="font-size:16px">${m.poin.toLocaleString('id-ID')}</b></td>
     <td>${m.role==='admin' ? '-' : `<label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;font-weight:500;white-space:nowrap"><input type="checkbox" style="width:18px;height:18px" ${m.boleh_dp?'checked':''} onchange="aturDp('${m.id}',this)"> ${m.boleh_dp?'Boleh DP':'Tidak'}</label>`}</td>
     <td class="mut">${tgl(m.created_at)}</td>
