@@ -123,6 +123,7 @@ th{background:#fafafa;font-size:12.5px;color:var(--mut);font-weight:500}
 .sugg{border:1px solid var(--bd);border-radius:2px;margin-top:4px;max-height:220px;overflow:auto;background:#fff}
 .sugg div{padding:8px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--bd)}.sugg div:hover{background:var(--pri-l)}
 .svc{border:1px solid var(--bd);border-radius:2px;padding:9px 11px;margin-top:6px;display:flex;gap:8px;align-items:center;cursor:pointer}
+.svc.kurir{border-color:#333;background:#f2f2f2}
 .svc:has(input:checked){border-color:var(--pri);background:var(--pri-l)}
 .svc input{width:auto}
 .sum div{display:flex;justify-content:space-between;padding:4px 0}.sum .tot{font-weight:700;font-size:17px;border-top:1px solid var(--bd);padding-top:8px;margin-top:4px;color:var(--pri)}
@@ -462,7 +463,7 @@ function viewDaftar(){
   app.innerHTML = `<div class="auth card"><h1>Daftar Member</h1>
     <p class="mut">Kumpulkan poin & tukarkan dengan hadiah menarik.</p>
     <form id="f"><label>Nama lengkap</label><input name="nama" required>
-    <label>No. HP / WhatsApp</label><input name="no_hp" required inputmode="tel" placeholder="08xxxxxxxxxx">
+    <label>No. HP / WhatsApp</label><input name="no_hp" required inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder="08xxxxxxxxxx">
     <label>Email</label><input name="email" type="email" required>
     <label>Password (min. 6 karakter)</label><input name="password" type="password" minlength="6" required>
     <button class="btn blk" style="margin-top:14px">Daftar</button></form>
@@ -505,13 +506,14 @@ async function viewCheckout(){
   const berat = S.cart.reduce((a,b)=>a+b.berat*b.qty,0), sub = S.cart.reduce((a,b)=>a+b.harga*b.qty,0);
   CO = { berat, sub, tarif, mode:'api', tujuan:null, svc:null, opsi:[] };
   app.innerHTML = `<h1>Checkout</h1><div class="two"><div class="card">
-    <h2 style="margin-top:0">Alamat pengiriman</h2>
-    <div class="row"><div><label>Nama penerima</label><input id="nm" value="${esc(p.nama)}"></div><div><label>No. HP</label><input id="hp" value="${esc(p.no_hp)}"></div></div>
+    <h2 style="margin-top:0">Alamat penerima</h2>
+    <div class="row"><div><label>Nama penerima</label><input id="nm" value="${esc(p.nama)}"></div><div><label>No. HP</label><input id="hp" value="${esc(p.no_hp)}" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder="08xxxxxxxxxx"></div></div>
     <label>Alamat lengkap (jalan, no rumah, RT/RW, kelurahan)</label><textarea id="al" rows="2">${esc(p.alamat)}</textarea>
     <label>Kota / kecamatan tujuan</label>
     <div id="tujuanBox"><input id="cari" placeholder="Ketik min. 3 huruf, mis. Wonokromo" value="${esc(p.kecamatan||p.kota)}"><div id="sugg"></div></div>
-    <div class="row"><div><label>Kode pos</label><input id="kp" value="${esc(p.kodepos)}"></div></div>
+    <div class="row"><div><label>Kode pos</label><input id="kp" value="${esc(p.kodepos)}" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')" maxlength="5"></div></div>
     <label>Catatan (opsional)</label><input id="ct">
+    <h2>Kurir</h2><label class="svc kurir on"><input type="radio" name="kurir" checked><div style="flex:1"><img src="/jnt.png" alt="J&T Express" style="height:30px;display:block"><div class="mut">Antar kota / luar kota</div></div></label>
     <h2>Layanan J&T</h2><div id="svc" class="mut">Pilih kota tujuan dulu.</div>
     </div>
     <div class="card sum" style="align-self:start"><h2 style="margin-top:0">Ringkasan</h2>
@@ -760,10 +762,10 @@ function viewProfil(){
   const p = S.profile || {};
   app.innerHTML = `<div class="auth card" style="max-width:520px"><h1>Profil</h1><p class="mut">${esc(S.session.user.email)}</p>
     <form id="f"><label>Nama</label><input name="nama" value="${esc(p.nama)}" required>
-    <label>No. HP / WhatsApp</label><input name="no_hp" value="${esc(p.no_hp)}">
+    <label>No. HP / WhatsApp</label><input name="no_hp" value="${esc(p.no_hp)}" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder="08xxxxxxxxxx">
     <label>Alamat</label><textarea name="alamat" rows="2">${esc(p.alamat)}</textarea>
     <div class="row"><div><label>Kecamatan</label><input name="kecamatan" value="${esc(p.kecamatan)}"></div><div><label>Kota</label><input name="kota" value="${esc(p.kota)}"></div></div>
-    <label>Kode pos</label><input name="kodepos" value="${esc(p.kodepos)}">
+    <label>Kode pos</label><input name="kodepos" value="${esc(p.kodepos)}" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')" maxlength="5">
     <button class="btn blk" style="margin-top:14px">Simpan</button></form>
     <h2>Ganti password</h2><div class="row"><input id="pw" type="password" placeholder="Password baru (min. 6)"><button class="btn o" style="flex:none" onclick="gantiPw()">Ganti</button></div>
     <button class="btn g blk" style="margin-top:18px;color:var(--err)" onclick="logout()">Keluar dari akun</button></div>`;
@@ -899,7 +901,7 @@ async function cetakLabel(ids){
   if (!os.length) return;
   const st = S.settings;
   const lbl = o => `<div class="lbl">
-    <div class="hd"><div class="jnt">J&amp;T EXPRESS</div><div class="svc">${esc(o.layanan||'EZ')}</div></div>
+    <div class="hd"><div class="jnt"><img src="${location.origin}/jnt-hitam.png" alt="J&amp;T EXPRESS"></div><div class="svc">${esc(o.layanan||'EZ')}</div></div>
     ${o.resi?`<div class="bc">${barcode(o.resi,55)}<div class="bt">${esc(o.resi)}</div></div>`:`<div class="bc"><div class="noresi">RESI: ______________________</div></div>`}
     <div class="sec"><div class="t">PENERIMA</div><div class="nm">${esc(o.penerima_nama)}</div><div>${esc(o.penerima_hp)}</div>
       <div>${esc(o.penerima_alamat)}</div><div class="kt">${esc([o.penerima_kecamatan,o.penerima_kota].filter(Boolean).join(', ').toUpperCase())} ${esc(o.penerima_kodepos)}</div></div>
@@ -913,7 +915,7 @@ async function cetakLabel(ids){
     .lbl{width:100mm;height:150mm;padding:4mm;page-break-after:always;display:flex;flex-direction:column;gap:2mm;overflow:hidden}
     .lbl:last-child{page-break-after:auto}
     .hd{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #000;padding-bottom:1.5mm}
-    .jnt{font-weight:900;font-size:18px;letter-spacing:.5px}.svc{border:2px solid #000;padding:1mm 3mm;font-weight:900;font-size:16px}
+    .jnt{font-weight:900;font-size:18px;letter-spacing:.5px}.jnt img{height:9mm;display:block}.svc{border:2px solid #000;padding:1mm 3mm;font-weight:900;font-size:16px}
     .bc{text-align:center}.bc svg rect,.bc2 svg rect{fill:#000}.bt{text-align:center;font-weight:700;font-size:12px;letter-spacing:1px}
     .noresi{border:1px dashed #000;padding:4mm;font-weight:700;font-size:13px}
     .sec{border:1px solid #000;padding:1.5mm 2mm;line-height:1.35}.t{font-size:9px;font-weight:700;background:#000;color:#fff;display:inline-block;padding:0 2mm;margin-bottom:1mm}
@@ -925,6 +927,7 @@ async function cetakLabel(ids){
   const fr = document.createElement('iframe'); fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
   document.body.appendChild(fr);
   fr.contentDocument.open(); fr.contentDocument.write(html); fr.contentDocument.close();
+  await Promise.all([...fr.contentDocument.images].map(i=>i.complete?0:new Promise(r=>{i.onload=i.onerror=r;})));
   setTimeout(()=>{ fr.contentWindow.focus(); fr.contentWindow.print(); setTimeout(()=>fr.remove(), 60000); }, 300);
   await sb.from('orders').update({ dicetak_at: new Date().toISOString() }).in('id', ids);
 }
@@ -1296,8 +1299,8 @@ async function viewAdminPengaturan(){
     <label>Nama toko</label><input name="nama_toko" value="${esc(s.nama_toko)}">
     <label>Link pendek toko (untuk pesan WA)</label><input name="link_pendek" value="${esc(s.link_pendek||'')}" placeholder="kosong = https://bit.ly/warungdini">
     <label>Slogan banner beranda</label><input name="slogan" value="${esc(s.slogan||'Lengkap, murah, ramah.')}" maxlength="80" placeholder="mis. Lengkap, murah, ramah.">
-    <label>No. WhatsApp toko (penerima pesanan)</label><input name="wa_toko" value="${esc(s.wa_toko)}" placeholder="628xxxx">
-    <label>No. HP pengirim (di label)</label><input name="hp_toko" value="${esc(s.hp_toko)}">
+    <label>No. WhatsApp toko (penerima pesanan)</label><input name="wa_toko" value="${esc(s.wa_toko)}" placeholder="628xxxx" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    <label>No. HP pengirim (di label)</label><input name="hp_toko" value="${esc(s.hp_toko)}" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
     <label>Alamat pengirim</label><textarea name="alamat_toko" rows="2">${esc(s.alamat_toko)}</textarea>
     <label>Titik koordinat toko</label>
     <div class="row"><input name="toko_lat" id="tlat" placeholder="Latitude, mis. -7.2756" value="${esc(s.toko_lat||'')}" inputmode="decimal"><input name="toko_lng" id="tlng" placeholder="Longitude, mis. 112.5913" value="${esc(s.toko_lng||'')}" inputmode="decimal"></div>
