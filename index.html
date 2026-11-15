@@ -581,6 +581,8 @@ async function viewCheckout(){
       <div><span>Subtotal</span><b>${rp(sub)}</b></div>
       <div><span>Berat J&T</span><span>${kgJnt(berat)} kg</span></div>
       <div><span>Ongkir J&T</span><span id="ong">-</span></div>
+      ${potonganAktif() && (p.poin||0) > 0 ? `<label class="svc" style="margin:6px 0"><input type="checkbox" id="pakaiPoin" onchange="hitungTotal()"><div style="flex:1;display:block"><b>Tukar poin jadi potongan harga</b><div class="mut" id="poinInfo" style="display:block">Saldo ${(p.poin||0).toLocaleString('id-ID')} poin = potongan ${rp(Math.min((p.poin||0)*ratePoin(), sub))}</div></div></label>
+      <div id="potRow" style="display:none"><span>Potongan poin</span><span id="pot" style="color:var(--ok);font-weight:600">-</span></div>` : ''}
       <div class="tot"><span>Total</span><span id="tot">${rp(sub)}</span></div>
       <h2>Metode pembayaran</h2>
       <label class="svc"><input type="radio" name="mb" value="qris" checked onchange="pilihMetode()"><div style="flex:1"><b>QRIS</b><div class="mut">Scan pakai m-banking / GoPay / OVO / DANA / ShopeePay</div></div></label>
@@ -642,7 +644,11 @@ function drawSvc(){
     <div style="flex:1"><b>J&T ${esc(o.layanan)}</b> <span class="mut">${esc(o.ket||'')}</span><div class="mut">${o.etd?`Estimasi ${esc(o.etd)}`:''}</div></div><b>${rp(o.ongkir)}</b></label>`).join('');
   CO.svc = CO.opsi[0]; hitungTotal();
 }
-function hitungTotal(){ const o = CO.svc?.ongkir || 0; $('#ong').textContent = CO.svc ? rp(o) : '-'; $('#tot').textContent = rp(CO.sub + o);  if ($('#dpOn')) ubahDp(); }
+function hitungTotal(){ const o = CO.svc?.ongkir || 0; $('#ong').textContent = CO.svc ? rp(o) : '-';
+  if ($('#pakaiPoin')) { const k = potonganPoin(), r = ratePoin(), saldo = S.profile?.poin || 0;
+    $('#potRow').style.display = k.pot ? '' : 'none'; $('#pot').textContent = '−' + rp(k.pot);
+    $('#poinInfo').textContent = k.poin ? `${k.poin.toLocaleString('id-ID')} poin dipakai · sisa ${(saldo-k.poin).toLocaleString('id-ID')} poin` : `Saldo ${saldo.toLocaleString('id-ID')} poin = potongan ${rp(Math.min(saldo*r, CO.sub))}`; }
+  $('#tot').textContent = rp(totalCO()); if ($('#dpOn')) ubahDp(); else if ($('#buat')) pilihMetode(); }
 async function buatPesanan(){
   const nama = $('#nm').value.trim(), hp = $('#hp').value.trim(), alamat = $('#al').value.trim();
   if (!nama || !hp || !alamat) return toast('Lengkapi nama, HP, dan alamat', true);
@@ -653,13 +659,13 @@ async function buatPesanan(){
   const b = $('#buat'); b.disabled = true;
   try {
     const kirim = { nama, hp, alamat, kota: CO.tujuan.kota, kecamatan: CO.tujuan.kecamatan || '', kodepos: $('#kp').value.trim(),
-      tujuan_id: String(CO.tujuan.id||''), layanan: CO.svc.layanan, ongkir: CO.svc.ongkir, etd: CO.svc.etd || '', catatan: $('#ct').value.trim(), metode_bayar: metodeDipilih(), dp_persen: dpDipilih() };
+      tujuan_id: String(CO.tujuan.id||''), layanan: CO.svc.layanan, ongkir: CO.svc.ongkir, etd: CO.svc.etd || '', catatan: $('#ct').value.trim(), metode_bayar: metodeDipilih(), dp_persen: dpDipilih(), pakai_poin: !!$('#pakaiPoin')?.checked };
     const kode = ok(await sb.rpc('create_order', { p_items: S.cart.map(c=>({ id:c.id, qty:c.qty, satuan:c.satuan||'pack' })), p_kirim: kirim }));
     // simpan alamat ke profil
     await sb.from('profiles').update({ alamat, kota: kirim.kota, kecamatan: kirim.kecamatan, kodepos: kirim.kodepos,
       ...(CO.tujuan.id ? { kelurahan: CO.tujuan.kelurahan||'', tujuan_id: String(CO.tujuan.id), tujuan_label: CO.tujuan.label||'' } : {}) }).eq('id', S.session.user.id);
     const o = ok(await sb.from('orders').select('*').eq('kode', kode).single());
-    S.cart = []; saveCart();
+    S.cart = []; saveCart(); if (o.poin_dipakai) loadProfile();
     ORD_TERAKHIR = o;
     app.innerHTML = `<div class="auth card" style="text-align:center"><div style="font-size:48px">✅</div><h1>Pesanan dibuat</h1>
       <p>Kode pesanan <b>${esc(kode)}</b><br>Total bayar <b style="color:var(--pri);font-size:18px">${rp(o.total)}</b></p>
@@ -673,7 +679,7 @@ async function buatPesanan(){
 function waLink(o, bayar){
   const lines = [`*PESANAN ${o.kode}*`, `${S.settings.nama_toko||''}`, '',
     ...o.items.map(i=>`• ${namaItemTxt(i)} x${i.qty} = ${rp(i.harga*i.qty)}`), '',
-    `Subtotal: ${rp(o.subtotal)}`, `Ongkir J&T ${o.layanan} (${kgJnt(o.berat_gram)} kg): ${rp(o.ongkir)}`, `*Total: ${rp(o.total)}*`, o.dp_persen ? `DP ${o.dp_persen}%: ${rp(o.dp_nominal)} · Sisa pelunasan: ${rp(o.total - o.dp_nominal)}` : '', '',
+    `Subtotal: ${rp(o.subtotal)}`, `Ongkir J&T ${o.layanan} (${kgJnt(o.berat_gram)} kg): ${rp(o.ongkir)}`, o.potongan_poin ? `Potongan tukar ${o.poin_dipakai} poin: -${rp(o.potongan_poin)}` : '', `*Total: ${rp(o.total)}*`, o.dp_persen ? `DP ${o.dp_persen}%: ${rp(o.dp_nominal)} · Sisa pelunasan: ${rp(o.total - o.dp_nominal)}` : '', '',
     `Penerima: ${o.penerima_nama} (${o.penerima_hp})`, `Alamat: ${o.penerima_alamat}, ${[o.penerima_kecamatan,o.penerima_kota,o.penerima_kodepos].filter(Boolean).join(', ')}`,
     o.catatan ? `Catatan: ${o.catatan}` : '', bayar ? `\nSaya sudah bayar via ${o.metode_bayar==='transfer'?`transfer ${S.settings.bank_nama||'bank'}`:'QRIS'} untuk ${jenisTagihan(o)} sebesar ${rp(tagihan(o))}. Bukti bayar saya lampirkan.` : ''].filter(x=>x!==null);
   const no = String(S.settings.wa_toko||'').replace(/\D/g,'').replace(/^0/,'62');
@@ -708,12 +714,21 @@ async function downloadQris(){
 
 // link toko untuk pesan WA: pakai link pendek (bit.ly) bila diisi di Pengaturan
 const linkToko = () => (String(S.settings.link_pendek||'').trim() || 'https://bit.ly/warungdini').replace(/\/$/,'');
+/* ================= TUKAR POIN JADI POTONGAN HARGA ================= */
+const ratePoin = () => { const v = parseInt(S.settings.poin_rupiah, 10); return v > 0 ? v : 0; };
+const potonganAktif = () => S.settings.poin_potongan_aktif === '1' && ratePoin() > 0;
+function potonganPoin(){
+  if (!$('#pakaiPoin')?.checked) return { poin:0, pot:0 };
+  const r = ratePoin(), saldo = S.profile?.poin || 0, poin = Math.min(saldo, Math.ceil(CO.sub / r));
+  return { poin, pot: Math.min(poin * r, CO.sub) };
+}
+const totalCO = () => CO.sub + (CO.svc?.ongkir || 0) - potonganPoin().pot;
 /* ================= DP (UANG MUKA) ================= */
 const hitungDp = (total, pct) => pct ? Math.ceil(total * pct / 100 / 100) * 100 : 0;   // dibulatkan ke atas per Rp100 (sama dengan server)
 const dpDipilih = () => $('#dpOn')?.checked ? +$('#dpPct').value : 0;
 function ubahDp(){
   const on = $('#dpOn').checked; $('#dpBox').style.display = on ? '' : 'none';
-  const tot = CO.sub + (CO.svc?.ongkir || 0), dp = hitungDp(tot, dpDipilih());
+  const tot = totalCO(), dp = hitungDp(tot, dpDipilih());
   $('#dpNow').textContent = rp(dp); $('#dpSisa').textContent = rp(tot - dp);
   pilihMetode();
 }
@@ -730,7 +745,7 @@ const bankAktif = () => !!(String(S.settings.bank_nama||'').trim() && String(S.s
 const metodeDipilih = () => document.querySelector('input[name=mb]:checked')?.value || 'qris';
 function pilihMetode(){
   const tf = metodeDipilih() === 'transfer';
-  const dp = dpDipilih(), tot = CO.sub + (CO.svc?.ongkir || 0);
+  const dp = dpDipilih(), tot = totalCO();
   $('#buat').textContent = `Buat Pesanan & Bayar ${dp ? `DP ${rp(hitungDp(tot, dp))} ` : ''}(${tf ? 'Transfer Bank' : 'QRIS'})`;
   $('#mbInfo').textContent = tf ? 'Setelah pesanan dibuat, nomor rekening toko akan muncul. Transfer sesuai total, lalu kirim bukti transfer ke WhatsApp toko.'
                                 : 'Setelah pesanan dibuat, QRIS pembayaran akan muncul. Bayar sesuai total, lalu kirim bukti bayar ke WhatsApp toko.';
@@ -766,7 +781,7 @@ async function viewPesanan(){
   PS_LIST = d;
   app.innerHTML = `<h1>Pesanan Saya</h1>${d.length ? `<div class="tw"><table><tr><th>Kode</th><th>Tanggal</th><th>Item</th><th>Total</th><th>Status</th><th>Resi J&T</th><th></th></tr>
     ${d.map(o=>`<tr><td><b>${esc(o.kode)}</b></td><td>${tgl(o.created_at)}</td><td>${o.items.map(i=>`${namaItem(i)} ×${i.qty}`).join('<br>')}</td>
-      <td>${rp(o.total)}<div style="margin-top:3px">${chipBayar(o)}</div></td><td><span class="st ${o.status}">${o.status}</span></td>
+      <td>${rp(o.total)}${o.potongan_poin?`<div class="mut">hemat ${rp(o.potongan_poin)} (${o.poin_dipakai} poin)</div>`:''}<div style="margin-top:3px">${chipBayar(o)}</div></td><td><span class="st ${o.status}">${o.status}</span></td>
       <td>${o.resi ? (o.status_bayar !== 'lunas' ? `<span style="color:var(--err);font-weight:600">🔒 Resi sudah terbit</span><div class="mut">Lunasi ${rp(tagihan(o))} untuk melihat resi</div>` : `<b>${esc(o.resi)}</b><br><button class="btn o sm" style="margin-top:4px" onclick="lacakResi('${esc(o.resi)}')">📦 Lacak</button>`) : (o.status==='dikonfirmasi'?'<span class="mut">Sedang dikemas</span>':'-')}</td>
       <td style="white-space:nowrap">${o.status!=='batal' && tagihan(o) > 0 && (o.status==='menunggu' || o.status_bayar==='dp') ? `<button class="btn sm" onclick="bukaBayar(PS_LIST.find(x=>x.id===${o.id}))">${o.status_bayar==='dp' ? 'Bayar Pelunasan' : 'Bayar'}</button> `:''}<a class="btn wa sm" href="${waLink(o, o.status==='menunggu' || o.status_bayar==='dp')}" target="_blank">WA</a> ${o.status==='menunggu'?`<button class="btn g sm" onclick="batalOrder(${o.id})">Batal</button>`:''}</td></tr>`).join('')}
     </table></div>` : '<div class="empty">Belum ada pesanan.</div>'}`;
@@ -888,7 +903,7 @@ function drawAdminPesanan(){
       <td><b>${esc(o.kode)}</b><div class="mut">${tgl(o.created_at)}</div>${o.dicetak_at?'<div class="mut">🖨️ sudah dicetak</div>':''}</td>
       <td><b>${esc(o.penerima_nama)}</b> · ${esc(o.penerima_hp)}<div class="mut">${esc(o.penerima_alamat)}, ${esc([o.penerima_kecamatan,o.penerima_kota,o.penerima_kodepos].filter(Boolean).join(', '))}</div><div class="mut">Member: ${esc(o.profiles?.nama||'-')}</div></td>
       <td>${o.items.map(i=>`${namaItem(i)} ×${i.qty}`).join('<br>')}<div class="mut">${kgJnt(o.berat_gram)} kg</div></td>
-      <td>${esc(o.layanan)}<br>${rp(o.ongkir)}</td><td><b>${rp(o.total)}</b><div class="mut">${o.metode_bayar==='transfer'?'🏦 Transfer':'▦ QRIS'}</div><div style="margin-top:3px">${chipBayar(o)}</div></td>
+      <td>${esc(o.layanan)}<br>${rp(o.ongkir)}</td><td><b>${rp(o.total)}</b>${o.potongan_poin?`<div class="mut">poin −${rp(o.potongan_poin)}</div>`:''}<div class="mut">${o.metode_bayar==='transfer'?'🏦 Transfer':'▦ QRIS'}</div><div style="margin-top:3px">${chipBayar(o)}</div></td>
       <td><span class="st ${o.status}">${o.status}</span>${o.resi?`<div class="mut">Resi: ${esc(o.resi)} · <a href="#" onclick="lacakResi('${esc(o.resi)}');return false">lacak</a></div>`:''}</td>
       <td style="white-space:nowrap">${aksiOrder(o)}</td></tr>`).join('')}</table></div>`:'<div class="empty">Tidak ada pesanan.</div>'}`;
   $('#ap').value = autoPrint(); $('#ap').onchange = e => { localStorage.setItem('autoPrint', e.target.value); toast('Disimpan'); };
@@ -1141,10 +1156,26 @@ async function riwayatPoin(id, nama){
 let AH = [];
 async function viewAdminHadiah(){
   AH = ok(await sb.from('rewards').select('*').order('poin'));
-  app.innerHTML = `<h1>Katalog Hadiah</h1><div class="toolbar"><button class="btn" onclick="formHadiah()">+ Tambah hadiah</button></div>
+  const st = S.settings;
+  app.innerHTML = `<h1>Katalog Hadiah</h1>
+    <div class="card" style="margin-bottom:14px"><h2 style="margin-top:0">Program tukar poin jadi potongan harga</h2>
+      <p class="mut">Bila aktif, member bisa centang "Tukar poin" saat checkout. Semua poin otomatis dipakai sebagai potongan (maksimal sebesar harga belanja, tidak termasuk ongkir).</p>
+      <form id="fpp" class="row" style="align-items:flex-end">
+        <label style="flex:none;display:flex;gap:6px;align-items:center;margin:0 0 10px"><input type="checkbox" name="aktif" style="width:18px;height:18px" ${st.poin_potongan_aktif==='1'?'checked':''}> Aktifkan</label>
+        <div><label>Nilai 1 poin (Rp)</label><input name="rate" value="${esc(st.poin_rupiah||'')}" placeholder="mis. 10" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
+        <button class="btn" style="flex:none">Simpan</button></form>
+      <div class="mut" id="ppContoh"></div></div>
+    <div class="toolbar"><button class="btn" onclick="formHadiah()">+ Tambah hadiah</button></div>
     ${AH.length?`<div class="tw"><table><tr><th>Foto</th><th>Nama</th><th>Poin</th><th>Stok</th><th>Aktif</th><th></th></tr>
     ${AH.map(r=>`<tr><td>${r.foto_url?`<img src="${esc(r.foto_url)}" style="width:44px;height:44px;object-fit:cover;border-radius:6px">`:'🎁'}</td><td><b>${esc(r.nama)}</b><div class="mut">${esc(r.deskripsi)}</div></td>
       <td>${r.poin}</td><td>${r.stok}</td><td>${r.aktif?'✅':'—'}</td><td><button class="btn g sm" onclick="formHadiah(${r.id})">Edit</button></td></tr>`).join('')}</table></div>`:'<div class="empty">Belum ada hadiah.</div>'}`;
+  const contoh = () => { const r = +$('[name=rate]').value || 0; $('#ppContoh').textContent = r ? `Contoh: member punya 1.500 poin → potongan ${rp(1500*r)}` : ''; };
+  contoh(); $('[name=rate]').addEventListener('input', contoh);
+  $('#fpp').onsubmit = async e => { e.preventDefault();
+    const aktif = e.target.aktif.checked, rate = e.target.rate.value.trim();
+    if (aktif && !(+rate > 0)) return toast('Isi nilai 1 poin dalam Rupiah', true);
+    try { ok(await sb.from('settings').upsert([{ key:'poin_potongan_aktif', value: aktif?'1':'0' }, { key:'poin_rupiah', value: rate }])); await loadSettings();
+      toast(aktif ? '✓ Program tukar poin aktif' : 'Program tukar poin dinonaktifkan'); } catch(er){ fail(er); } };
 }
 function formHadiah(id){
   const r = AH.find(x=>x.id===id) || { nama:'', deskripsi:'', poin:100, stok:10, foto_url:'', aktif:true };
