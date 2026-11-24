@@ -14,7 +14,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Warung Dini">
-<script src="d1-client.js"></script>
+<script src="d1-client.js?v=3"></script>
 <style>
 :root{color-scheme:only light;--pri:#ee4d2d;--pri-d:#d73211;--pri-l:#fff4f1;--bg:#f5f5f5;--card:#fff;--tx:#222;--mut:#757575;--bd:#e8e8e8;--ok:#26aa99;--warn:#f69113;--err:#e02c2c;--r:4px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -479,9 +479,10 @@ function pasangFormAlamat(){ let tm; $('#almCari').oninput = e => { ALM.pilih = 
 async function cariAlamat(q){
   if (q.length < 3) { $('#almSugg').innerHTML = ''; return; }
   $('#almSugg').innerHTML = '<div class="mut">Mencari…</div>';
-  let list = [];
-  try { const { data } = await sb.functions.invoke('ongkir-jnt', { body:{ action:'search', q } }); list = data?.data || []; } catch {}
+  let list = [], galat = '';
+  try { const r = await sb.functions.invoke('ongkir-jnt', { body:{ action:'search', q } }); list = r.data?.data || []; galat = r.data?.error || r.error?.message || ''; } catch(e) { galat = e.message; }
   ALM.list = list;
+  if (!list.length && galat) { $('#almSugg').innerHTML = `<div class="mut" style="color:var(--err)">Cek ongkir otomatis gagal: ${esc(galat)}. Isi kota & kode pos manual.</div>`; return; }
   $('#almSugg').innerHTML = list.length ? `<div class="sugg">${list.map((d,i)=>`<div onclick="pilihAlamat(${i})">${esc(d.label || [d.subdistrict_name,d.district_name,d.city_name].join(', '))}${d.zip_code&&d.zip_code!=='0'?` · <b>${esc(d.zip_code)}</b>`:''}</div>`).join('')}</div>` : '<div class="mut">Tidak ditemukan, isi kota & kode pos manual.</div>';
 }
 function pilihAlamat(i){
@@ -593,9 +594,11 @@ async function cekOngkirApi(){
 }
 async function cariTujuan(q){
   if (q.length < 3) { $('#sugg').innerHTML = ''; return; }
-  const { data } = await sb.functions.invoke('ongkir-jnt', { body:{ action:'search', q } });
+  const r = await sb.functions.invoke('ongkir-jnt', { body:{ action:'search', q } });
+  const data = r.data || { error: r.error?.message };
   const list = data?.data || [];
   CO.sugg = list;
+  if (!list.length && data?.error) { $('#sugg').innerHTML = `<div class="mut" style="color:var(--err)">Cek ongkir otomatis gagal: ${esc(data.error)}</div>`; return; }
   $('#sugg').innerHTML = list.length ? `<div class="sugg">${list.map((d,i)=>`<div onclick="pilihTujuan(${i})">${esc(d.label || [d.subdistrict_name,d.district_name,d.city_name,d.province_name].join(', '))}</div>`).join('')}</div>` : '<div class="mut">Tidak ditemukan</div>';
 }
 async function pilihTujuan(i){
