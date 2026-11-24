@@ -429,7 +429,7 @@ const RO = 'https://rajaongkir.komerce.id/api/v1';
 // Kalau key utama habis kuota / ditolak, otomatis pindah ke cadangan; pilihan diingat 6 jam di KV.
 const habis = (status, msg) => [401, 402, 403, 429].includes(status) || status >= 500 || /limit|quota|kuota|exceed|habis|invalid api key|unauthori/i.test(String(msg || ''));
 async function ro(env, path, init = {}) {
-  const keys = [env.RAJAONGKIR_KEY, env.RAJAONGKIR_KEY_2].filter(Boolean);
+  const keys = [env.RAJAONGKIR_KEY, env.RAJAONGKIR_KEY_2 || env.RAJAONGKIR_KEY2].filter(Boolean);   // nama cadangan boleh pakai/tanpa garis bawah
   if (!keys.length) return { tanpaKey: true };
   let mulai = 0;
   try { mulai = Math.min(parseInt(await env.FILES.get('__ro_aktif'), 10) || 0, keys.length - 1); } catch {}
@@ -451,7 +451,7 @@ async function apiOngkir(req, env) {
   const form = 'application/x-www-form-urlencoded';
   if (body.action === 'search') {
     const q = String(body.q || '').trim();
-    if (!env.RAJAONGKIR_KEY && !env.RAJAONGKIR_KEY_2) return { ok: false, error: 'RAJAONGKIR_KEY belum diset' };
+    if (!env.RAJAONGKIR_KEY && !env.RAJAONGKIR_KEY_2 && !env.RAJAONGKIR_KEY2) return { ok: false, error: 'RAJAONGKIR_KEY belum diset' };
     if (q.length < 3) return { ok: true, data: [] };
     const { r, d } = await ro(env, `/destination/domestic-destination?search=${encodeURIComponent(q)}&limit=10&offset=0`);
     return { ok: r.ok, data: d.data || [], error: r.ok ? null : d?.meta?.message || `HTTP ${r.status}` };
