@@ -23,5 +23,6 @@ id = "245c1db39e874b3e99c3137cbd8a0dc1"
 enabled = true
 
 # Secret (isi lewat dashboard Cloudflare → Worker dini-menganti → Settings → Variables and Secrets):
-#   RAJAONGKIR_KEY  → API key RajaOngkir Komerce (ongkir otomatis J&T). Tanpa ini checkout pakai tarif manual.
+#   RAJAONGKIR_KEY    → API key RajaOngkir Komerce utama (ongkir otomatis J&T). Tanpa ini checkout pakai tarif manual.
+#   RAJAONGKIR_KEY_2  → API key cadangan; otomatis dipakai bila key utama habis kuota.
 #   JWT_SECRET      → opsional; kalau kosong dibuat otomatis.

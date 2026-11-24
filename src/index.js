@@ -425,29 +425,51 @@ async function apiAuth(path, req, env) {
 
 // ---------------------------------------------------------------- ongkir J&T (RajaOngkir Komerce)
 const RO = 'https://rajaongkir.komerce.id/api/v1';
+// 2 API key RajaOngkir: RAJAONGKIR_KEY (utama) & RAJAONGKIR_KEY_2 (cadangan).
+// Kalau key utama habis kuota / ditolak, otomatis pindah ke cadangan; pilihan diingat 6 jam di KV.
+const habis = (status, msg) => [401, 402, 403, 429].includes(status) || status >= 500 || /limit|quota|kuota|exceed|habis|invalid api key|unauthori/i.test(String(msg || ''));
+async function ro(env, path, init = {}) {
+  const keys = [env.RAJAONGKIR_KEY, env.RAJAONGKIR_KEY_2].filter(Boolean);
+  if (!keys.length) return { tanpaKey: true };
+  let mulai = 0;
+  try { mulai = Math.min(parseInt(await env.FILES.get('__ro_aktif'), 10) || 0, keys.length - 1); } catch {}
+  let hasil;
+  for (let n = 0; n < keys.length; n++) {
+    const idx = (mulai + n) % keys.length;
+    const r = await fetch(RO + path, { ...init, headers: { ...(init.headers || {}), key: keys[idx] } });
+    const d = await r.json().catch(() => ({}));
+    hasil = { r, d, idx };
+    if (!habis(r.status, d?.meta?.message)) {
+      if (idx !== mulai) { try { await env.FILES.put('__ro_aktif', String(idx), { expirationTtl: 6 * 3600 }); } catch {} }
+      return hasil;
+    }
+  }
+  return hasil;   // semua key gagal: kembalikan jawaban terakhir
+}
 async function apiOngkir(req, env) {
-  const key = env.RAJAONGKIR_KEY;
-  if (!key) return { ok: false, error: 'RAJAONGKIR_KEY belum diset' };
   const body = await req.json();
+  const form = 'application/x-www-form-urlencoded';
   if (body.action === 'search') {
     const q = String(body.q || '').trim();
+    if (!env.RAJAONGKIR_KEY && !env.RAJAONGKIR_KEY_2) return { ok: false, error: 'RAJAONGKIR_KEY belum diset' };
     if (q.length < 3) return { ok: true, data: [] };
-    const r = await fetch(`${RO}/destination/domestic-destination?search=${encodeURIComponent(q)}&limit=10&offset=0`, { headers: { key } });
-    const d = await r.json().catch(() => ({}));
-    return { ok: r.ok, data: d.data || [], error: r.ok ? null : d?.meta?.message };
+    const { r, d } = await ro(env, `/destination/domestic-destination?search=${encodeURIComponent(q)}&limit=10&offset=0`);
+    return { ok: r.ok, data: d.data || [], error: r.ok ? null : d?.meta?.message || `HTTP ${r.status}` };
   }
   if (body.action === 'cost') {
-    const form = new URLSearchParams({ origin: String(body.origin), destination: String(body.destination), weight: String(Math.max(1, Math.round(body.weight || 1000))), courier: 'jnt', price: 'lowest' });
-    const r = await fetch(`${RO}/calculate/domestic-cost`, { method: 'POST', headers: { key, 'Content-Type': 'application/x-www-form-urlencoded' }, body: form });
-    const d = await r.json().catch(() => ({}));
-    return { ok: r.ok, data: (d.data || []).map(x => ({ service: x.service, description: x.description, cost: x.cost, etd: x.etd })), error: r.ok ? null : d?.meta?.message };
+    const isi = new URLSearchParams({ origin: String(body.origin), destination: String(body.destination), weight: String(Math.max(1, Math.round(body.weight || 1000))), courier: 'jnt', price: 'lowest' });
+    const x = await ro(env, '/calculate/domestic-cost', { method: 'POST', headers: { 'Content-Type': form }, body: isi.toString() });
+    if (x.tanpaKey) return { ok: false, error: 'RAJAONGKIR_KEY belum diset' };
+    const { r, d } = x;
+    return { ok: r.ok, data: (d.data || []).map(v => ({ service: v.service, description: v.description, cost: v.cost, etd: v.etd })), error: r.ok ? null : d?.meta?.message || `HTTP ${r.status}` };
   }
   if (body.action === 'track') {
     const awb = String(body.awb || '').trim().toUpperCase().replace(/\s+/g, '');
     if (!/^[A-Z0-9]{6,30}$/.test(awb)) return { ok: false, error: 'Nomor resi tidak valid' };
     const qs = new URLSearchParams({ awb, courier: 'jnt' });
-    const r = await fetch(`${RO}/track/waybill?${qs}`, { method: 'POST', headers: { key, 'Content-Type': 'application/x-www-form-urlencoded' }, body: qs });
-    const d = await r.json().catch(() => ({}));
+    const x = await ro(env, `/track/waybill?${qs}`, { method: 'POST', headers: { 'Content-Type': form }, body: qs.toString() });
+    if (x.tanpaKey) return { ok: false, error: 'RAJAONGKIR_KEY belum diset' };
+    const { r, d } = x;
     return { ok: r.ok && !!d?.data, data: d?.data || null, error: r.ok ? null : d?.meta?.message || `HTTP ${r.status}` };
   }
   return { ok: false, error: 'action tidak dikenal' };
