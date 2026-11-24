@@ -26,7 +26,7 @@
     let j = null; try { j = await r.json(); } catch {}
     if (r.status === 401 && sesi && !url.includes('/api/auth/login')) { simpanSesi(null); kabari('SIGNED_OUT', null); }
     if (!r.ok || j?.error) return { data: null, error: errObj(j?.error?.message || `HTTP ${r.status}`, r.status) };
-    return { data: j?.data !== undefined ? j.data : j, error: null };
+    return { data: opt.utuh ? j : (j?.data !== undefined ? j.data : j), error: null };
   }
 
   /* ---------------- query builder ---------------- */
@@ -94,7 +94,7 @@
       removeChannel: ch => ch?.stop?.(),
       functions: {
         invoke: async (_nama, opt = {}) => {
-          const r = await panggil('/api/ongkir', opt.body || {});
+          const r = await panggil('/api/ongkir', opt.body || {}, { utuh: true });   // balasan ongkir dipakai utuh: { ok, data, error }
           return r.error ? r : { data: r.data, error: null };
         },
       },
