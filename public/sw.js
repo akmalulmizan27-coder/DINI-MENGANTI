@@ -1,8 +1,8 @@
 /* Service worker Warung Dini — Develop Program (MIZAN&NORMAN)
    Halaman: network-first (selalu versi terbaru, cadangan cache saat offline).
    Aset statis lokal: stale-while-revalidate. Data Supabase/API: tidak di-cache. */
-const CACHE = 'warung-dini-v11';
-const SHELL = ['/', '/index.html', '/demo-db.js', '/manifest.json', '/logo.jpg', '/banner-bg.jpg', '/jnt.png', '/jnt-hitam.png', '/fonts/poppins-bold.woff', '/icons/icon-192.png', '/icons/icon-512.png'];
+const CACHE = 'warung-dini-d1-v1';
+const SHELL = ['/', '/index.html', '/d1-client.js', '/manifest.json', '/logo.jpg', '/banner-bg.jpg', '/jnt.png', '/jnt-hitam.png', '/fonts/poppins-bold.woff', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

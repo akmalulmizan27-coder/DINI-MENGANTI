@@ -14,8 +14,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Warung Dini">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="demo-db.js"></script>
+<script src="d1-client.js"></script>
 <style>
 :root{color-scheme:only light;--pri:#ee4d2d;--pri-d:#d73211;--pri-l:#fff4f1;--bg:#f5f5f5;--card:#fff;--tx:#222;--mut:#757575;--bd:#e8e8e8;--ok:#26aa99;--warn:#f69113;--err:#e02c2c;--r:4px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -202,15 +201,13 @@ footer{text-align:center;color:var(--mut);font-size:12px;padding:24px 10px 40px}
 
 <script>
 /* ================= KONFIGURASI ================= */
-const DEMO_MODE = false; // true = data di browser (tanpa server). false = pakai backend
-const SUPABASE_URL = 'https://xkwaudqodbcwjfdhrunu.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_cVpGcGWXl_8fKrDLxDFlGg_vQ53qLhx';
+// Backend: Cloudflare Worker + D1 di domain yang sama (/api/*). Tidak perlu URL / key apa pun di sini.
 /* =============================================== */
 
 // link reset password dari email membawa "type=recovery" di alamat — dicatat sebelum Supabase membersihkannya
 const MODE_RESET = /type=recovery/.test(location.hash + location.search);
 const ERR_LINK = (location.hash.match(/error_description=([^&]+)/) || [])[1];
-const sb = (DEMO_MODE && window.DemoDB) ? DemoDB.createClient() : supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth:{ flowType:'implicit', detectSessionInUrl:true } });
+const sb = supabase.createClient();
 const S = { session:null, profile:null, settings:{}, cart: JSON.parse(localStorage.getItem('cart')||'[]'), rt:null };
 const $ = s => document.querySelector(s);
 const app = $('#app');
@@ -242,7 +239,7 @@ async function loadProfile(){
   S.profile = data;
 }
 async function init(){
-  try { await loadSettings(); } catch(e){ app.innerHTML = `<div class="card">Gagal konek Supabase. Cek SUPABASE_URL & ANON KEY di index.html.<br><span class="mut">${esc(e.message)}</span></div>`; return; }
+  try { await loadSettings(); } catch(e){ app.innerHTML = `<div class="card">Gagal konek ke server. Coba muat ulang halaman.<br><span class="mut">${esc(e.message)}</span></div>`; return; }
   const { data:{ session } } = await sb.auth.getSession();
   S.session = session; await loadProfile();
   // bersihkan token dari alamat (#access_token=… / #error=…) supaya router normal
@@ -418,28 +415,14 @@ function viewLogin(){
 }
 function lupaPw(){
   const no = String(S.settings.wa_toko||'').replace(/\D/g,'').replace(/^0/,'62');
+  const pesan = e => `Halo admin, saya lupa password akun member Warung Dini. Mohon reset password akun saya.\nNama: \nNo. HP: \nEmail: ${e||''}`;
   modal(`<h2 style="margin-top:0">Lupa password</h2>
-    <p class="mut">Pilih salah satu cara:</p>
-    <b>1. Lewat email</b>
+    <p class="mut">Admin toko akan memberi password sementara lewat WhatsApp. Setelah masuk, Anda diminta membuat password baru.</p>
     <label>Email akun Anda</label><input id="lpEmail" type="email" placeholder="nama@email.com" value="${esc($('[name=email]')?.value?.includes('@') ? $('[name=email]').value : '')}">
-    <button class="btn blk" style="margin-top:8px" id="lpKirim" onclick="kirimLinkReset()">Kirim link reset ke email</button>
-    <div class="mut" style="margin-top:4px">Cek kotak masuk / folder spam, lalu klik linknya untuk membuat password baru.</div>
-    <hr style="border:0;border-top:1px solid var(--bd);margin:16px 0">
-    <b>2. Lewat admin toko (WhatsApp)</b>
-    <div class="mut">Admin akan memberi password sementara lewat WA.</div>
-    <a class="btn wa blk" style="display:block;margin-top:8px" target="_blank" id="lpWa" href="https://wa.me/${no}?text=${encodeURIComponent('Halo admin, saya lupa password akun member. Mohon reset password akun saya.\nNama: \nNo. HP: \nEmail: ')}">Minta reset via WhatsApp</a>
+    <a class="btn wa blk" style="display:block;margin-top:10px" target="_blank" id="lpWa" href="https://wa.me/${no}?text=${encodeURIComponent(pesan(''))}">Minta reset via WhatsApp admin</a>
     <button class="btn g blk" style="margin-top:8px" onclick="closeModal()">Tutup</button>`);
-  const upd = () => { const e = $('#lpEmail').value.trim(); $('#lpWa').href = `https://wa.me/${no}?text=${encodeURIComponent(`Halo admin, saya lupa password akun member. Mohon reset password akun saya.\nEmail: ${e}`)}`; };
-  $('#lpEmail').oninput = upd; if ($('#lpEmail').value) upd();
-}
-async function kirimLinkReset(){
-  const email = $('#lpEmail').value.trim();
-  if (!/^\S+@\S+\.\S+$/.test(email)) return toast('Isi email yang benar', true);
-  const b = $('#lpKirim'); b.disabled = true; b.textContent = 'Mengirim…';
-  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
-  b.disabled = false; b.textContent = 'Kirim link reset ke email';
-  if (error) return toast(/rate limit/i.test(error.message) ? 'Batas kirim email tercapai. Coba lagi nanti atau minta reset via WhatsApp admin.' : error.message, true);
-  closeModal(); toast(`Link reset dikirim ke ${email}. Cek juga folder spam.`);
+  const upd = () => { $('#lpWa').href = `https://wa.me/${no}?text=${encodeURIComponent(pesan($('#lpEmail').value.trim()))}`; };
+  $('#lpEmail').oninput = upd; upd();
 }
 function formPasswordBaru(dariEmail){
   modal(`<h2 style="margin-top:0">🔑 Buat password baru</h2>
@@ -1055,13 +1038,19 @@ async function uploadFoto(file, folder){
 let APR = [];
 async function viewAdminProduk(){
   APR = ok(await sb.from('products').select('*').order('nama'));
-  app.innerHTML = `<h1>Produk</h1><div class="toolbar"><input id="q" placeholder="Cari produk"><button class="btn" onclick="formProduk()">+ Tambah produk</button></div>
+  const luar = APR.filter(p=>/^https?:/.test(p.foto_url||'')).length;
+  app.innerHTML = `<h1>Produk</h1>${luar?`<div class="card" style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:220px"><b>${luar} foto masih di penyimpanan lama (Supabase).</b><div class="mut">Klik sekali untuk memindahkan foto produk, video iklan & logo ke penyimpanan Cloudflare. Bisa dipakai setelah kuota Supabase pulih.</div></div><button class="btn" id="btnImpor" onclick="imporFoto()">Pindahkan foto</button></div>`:''}<div class="toolbar"><input id="q" placeholder="Cari produk"><button class="btn" onclick="formProduk()">+ Tambah produk</button></div>
     <div class="tw"><table id="tb"></table></div>`;
   const draw = (q='') => $('#tb').innerHTML = `<tr><th>Foto</th><th>Nama</th><th>Kategori</th><th>Harga</th><th>Berat</th><th>Stok</th><th>Aktif</th><th></th></tr>` +
     APR.filter(p=>p.nama.toLowerCase().includes(q.toLowerCase())).map(p=>`<tr><td>${p.foto_url?`<img src="${esc(p.foto_url)}" style="width:44px;height:44px;object-fit:cover;border-radius:6px">`:'📦'}</td>
     <td><b>${esc(p.nama)}</b></td><td>${esc(p.kategori)}</td><td style="white-space:nowrap">${satuanList(p).map(u=>`<div><span class="mut">${u.label}</span> ${rp(u.harga)}</div>`).join('')}</td><td>${p.berat_gram} g</td><td style="${p.stok<=5?'color:var(--err);font-weight:700':''}">${p.stok} pack${p.stok>=p.isi_slof?`<div class="mut">≈ ${Math.floor(p.stok/(p.isi_slof||10))} slof</div>`:''}</td><td>${p.aktif?'✅':'—'}</td>
     <td><button class="btn g sm" onclick="formProduk(${p.id})">Edit</button></td></tr>`).join('');
   draw(); $('#q').oninput = e => draw(e.target.value);
+}
+async function imporFoto(){
+  const b = $('#btnImpor'); b.disabled = true; b.textContent = 'Memindahkan… (bisa 1–2 menit)';
+  try { const r = ok(await sb.importFoto()); toast(`✓ ${r.dipindah} file dipindahkan${r.gagal.length?`, ${r.gagal.length} gagal`:''}${r.sisa?` · masih ${r.sisa} file, klik sekali lagi`:''}`, r.gagal.length>0); if (r.gagal.length) console.warn(r.gagal); await loadSettings(); viewAdminProduk(); }
+  catch(e){ b.disabled = false; b.textContent = 'Pindahkan foto'; fail(e); }
 }
 function formProduk(id){
   const p = APR.find(x=>x.id===id) || { nama:'', kategori:'Umum', deskripsi:'', harga:0, berat_gram:100, stok:0, foto_url:'', aktif:true };

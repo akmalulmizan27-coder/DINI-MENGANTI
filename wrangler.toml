@@ -1,0 +1,27 @@
+# Warung Sembako Dini — Cloudflare Worker + D1 + KV (tanpa Supabase)
+name = "dini-menganti"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+# file web dilayani dari folder public/; /api/*, /files/* dan assetlinks diproses Worker dulu
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/files/*", "/.well-known/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dini-db"
+database_id = "569d61bc-4cbd-456b-b230-99333f62be0a"
+
+[[kv_namespaces]]
+binding = "FILES"
+id = "245c1db39e874b3e99c3137cbd8a0dc1"
+
+[observability]
+enabled = true
+
+# Secret (isi lewat dashboard Cloudflare → Worker dini-menganti → Settings → Variables and Secrets):
+#   RAJAONGKIR_KEY  → API key RajaOngkir Komerce (ongkir otomatis J&T). Tanpa ini checkout pakai tarif manual.
+#   JWT_SECRET      → opsional; kalau kosong dibuat otomatis.
