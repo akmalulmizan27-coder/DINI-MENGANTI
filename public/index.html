@@ -470,8 +470,8 @@ let ALM = {};
 function formAlamatHtml(p){
   const awal = p.tujuan_label || [p.kelurahan,p.kecamatan,p.kota].filter(Boolean).join(', ');
   ALM = { p, awal, pilih:null, list:[] };
-  return `<label>Alamat lengkap (jalan, no rumah, RT/RW)</label><textarea id="almJl" rows="2" placeholder="mis. Jl. Rungkut Mejoyo Selatan 4 No. 62">${esc(p.alamat)}</textarea>
-    <label>Kelurahan / kecamatan</label><input id="almCari" autocomplete="off" placeholder="Ketik min. 3 huruf, mis. Kali Rungkut" value="${esc(awal)}"><div id="almSugg"></div>
+  return `<label>Alamat lengkap (jalan, no rumah, RT/RW)</label><textarea id="almJl" rows="2">${esc(p.alamat)}</textarea>
+    <label>Kelurahan / kecamatan</label><input id="almCari" autocomplete="off" placeholder="Ketik min. 3 huruf" value="${esc(awal)}"><div id="almSugg"></div>
     <div class="row"><div><label>Kota</label><input id="almKota" value="${esc(p.kota)}"></div><div><label>Kode pos</label><input id="almKp" value="${esc(p.kodepos)}" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')" maxlength="5" placeholder="otomatis"></div></div>
     <p class="mut" style="margin:4px 0 0">Pilih kelurahan dari daftar, kota & kode pos terisi otomatis.</p>`;
 }
